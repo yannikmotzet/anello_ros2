@@ -38,6 +38,11 @@
 #include "anello_interfaces/msg/apodo.hpp"
 #include "nmea_msgs/msg/sentence.hpp"
 #include "mavros_msgs/msg/rtcm.hpp"
+
+//standard output topics
+#include "sensor_msgs/msg/imu.hpp"
+#include "sensor_msgs/msg/nav_sat_fix.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #endif
 
 #include "bit_tools.h"
@@ -45,6 +50,7 @@
 #include "messaging/rtcm_decoder.h"
 #include "messaging/ascii_decoder.h"
 #include "messaging/message_publisher.h"
+#include "messaging/standard_message_publisher.h"
 #include "messaging/health_message.h"
 
 
@@ -112,6 +118,26 @@
 #define LOCAL_ODOMETER_PORT_PARAMETER_NAME LOCAL_ODOMETER_PORT_NAME
 #endif
 
+#ifndef IMU_FRAME_ID_PARAMETER_NAME
+#define IMU_FRAME_ID_PARAMETER_NAME "imu_frame_id"
+#endif
+
+#ifndef GPS_FRAME_ID_PARAMETER_NAME
+#define GPS_FRAME_ID_PARAMETER_NAME "gps_frame_id"
+#endif
+
+#ifndef GPS2_FRAME_ID_PARAMETER_NAME
+#define GPS2_FRAME_ID_PARAMETER_NAME "gps2_frame_id"
+#endif
+
+#ifndef ODOM_FRAME_ID_PARAMETER_NAME
+#define ODOM_FRAME_ID_PARAMETER_NAME "odom_frame_id"
+#endif
+
+#ifndef BASE_FRAME_ID_PARAMETER_NAME
+#define BASE_FRAME_ID_PARAMETER_NAME "base_frame_id"
+#endif
+
 #ifndef LOG_LATEST_SET
 #define LOG_LATEST_SET 0
 #endif
@@ -158,6 +184,11 @@ public:
 		this->declare_parameter(LOCAL_DATA_PORT_PARAMETER_NAME, 1111);
 		this->declare_parameter(LOCAL_CONFIG_PORT_PARAMETER_NAME, 2222);
 		this->declare_parameter(LOCAL_ODOMETER_PORT_PARAMETER_NAME, 3333);
+		this->declare_parameter(IMU_FRAME_ID_PARAMETER_NAME, "imu_link");
+		this->declare_parameter(GPS_FRAME_ID_PARAMETER_NAME, "gps_link");
+		this->declare_parameter(GPS2_FRAME_ID_PARAMETER_NAME, "gps2_link");
+		this->declare_parameter(ODOM_FRAME_ID_PARAMETER_NAME, "odom");
+		this->declare_parameter(BASE_FRAME_ID_PARAMETER_NAME, "base_link");
 
 		std::string com_type;
 		this->get_parameter(COM_TYPE_PARAMETER_NAME, com_type);
@@ -167,6 +198,11 @@ public:
 		this->get_parameter(LOCAL_DATA_PORT_PARAMETER_NAME, config.local_data_port);
 		this->get_parameter(LOCAL_CONFIG_PORT_PARAMETER_NAME, config.local_config_port);
 		this->get_parameter(LOCAL_ODOMETER_PORT_PARAMETER_NAME, config.local_odometer_port);
+		this->get_parameter(IMU_FRAME_ID_PARAMETER_NAME, imu_frame_id_);
+		this->get_parameter(GPS_FRAME_ID_PARAMETER_NAME, gps_frame_id_);
+		this->get_parameter(GPS2_FRAME_ID_PARAMETER_NAME, gps2_frame_id_);
+		this->get_parameter(ODOM_FRAME_ID_PARAMETER_NAME, odom_frame_id_);
+		this->get_parameter(BASE_FRAME_ID_PARAMETER_NAME, base_frame_id_);
 
 		if (com_type == "UART")
 		{
@@ -214,6 +250,13 @@ public:
 		_hdg_publisher = this->create_publisher<anello_interfaces::msg::APHDG>("APHDG", 10);
 		_health_publisher = this->create_publisher<anello_interfaces::msg::APHEALTH>("APHEALTH", 1);
 		_gga_publisher = this->create_publisher<nmea_msgs::msg::Sentence>("ntrip_client/nmea", 1);
+
+		// create standard message publishers (in addition to the anello_interfaces ones above)
+		_imu_raw_publisher = this->create_publisher<sensor_msgs::msg::Imu>("imu/data_raw", 10);
+		_imu_ins_publisher = this->create_publisher<sensor_msgs::msg::Imu>("imu/data", 10);
+		_navsatfix_publisher = this->create_publisher<sensor_msgs::msg::NavSatFix>("gps/fix", 10);
+		_navsatfix2_publisher = this->create_publisher<sensor_msgs::msg::NavSatFix>("gps2/fix", 10);
+		_odom_publisher = this->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
 
 		// create a ntrip rtcm subscriber
 		_rtcm_subscriber = this->create_subscription<mavros_msgs::msg::RTCM>(
@@ -290,6 +333,7 @@ private:
 						decode_ascii_gps(val, decoded_val);
 						publish_gps(decoded_val, _gps_publisher);
 						publish_gga(decoded_val, _gga_publisher, this->now());
+						publish_navsatfix(decoded_val, _navsatfix_publisher, this->now(), gps_frame_id_);
 						_health_msg.add_gps_message(decoded_val);
 #if DEBUG_MAIN
 						printf("APGPSa\n");
@@ -301,6 +345,7 @@ private:
 						// ascii gp2 (goes to the same place for now)
 						decode_ascii_gps(val, decoded_val);
 						publish_gp2(decoded_val, _gp2_publisher);
+						publish_navsatfix(decoded_val, _navsatfix2_publisher, this->now(), gps2_frame_id_);
 #if DEBUG_MAIN
 						printf("APGP2a\n");
 #endif
@@ -322,6 +367,7 @@ private:
 						// ascii imu
 						decode_ascii_imu(val, num, decoded_val);
 						publish_imu(decoded_val, _imu_publisher);
+						publish_imu_raw(decoded_val[1], decoded_val[2], decoded_val[3], decoded_val[4], decoded_val[5], decoded_val[6], decoded_val[7], true, _imu_raw_publisher, this->now(), imu_frame_id_);
 						_health_msg.add_imu_message(decoded_val);
 #if DEBUG_MAIN
 						printf("APIMUa\n");
@@ -333,6 +379,7 @@ private:
 						// ascii im1
 						decode_ascii_im1(val, num, decoded_val);
 						publish_im1(decoded_val, _im1_publisher);
+						publish_imu_raw(decoded_val[1], decoded_val[2], decoded_val[3], decoded_val[4], decoded_val[5], decoded_val[6], decoded_val[7], true, _imu_raw_publisher, this->now(), imu_frame_id_);
 #if DEBUG_MAIN
 						printf("APIM1a\n");
 #endif
@@ -343,6 +390,8 @@ private:
 						// ascii ins
 						decode_ascii_ins(val, decoded_val);
 						publish_ins(decoded_val, _ins_publisher);
+						publish_ins_orientation(decoded_val, _imu_ins_publisher, this->now(), imu_frame_id_);
+						publish_odometry(decoded_val, _odom_publisher, this->now(), odom_frame_id_, base_frame_id_, _odom_origin);
 						_health_msg.add_ins_message(decoded_val);
 #if DEBUG_MAIN
 						printf("APINSa\n");
@@ -360,6 +409,7 @@ private:
 						{
 							decode_rtcm_imu_msg(decoded_val, a1buff);
 							publish_imu(decoded_val, _imu_publisher);
+							publish_imu_raw(decoded_val[1], decoded_val[2], decoded_val[3], decoded_val[4], decoded_val[5], decoded_val[6], decoded_val[7], true, _imu_raw_publisher, this->now(), imu_frame_id_);
 							_health_msg.add_imu_message(decoded_val);
 
 							isOK = 1;
@@ -371,11 +421,13 @@ private:
 							{
 								publish_gps(decoded_val, _gps_publisher);
 								publish_gga(decoded_val, _gga_publisher, this->now());
+								publish_navsatfix(decoded_val, _navsatfix_publisher, this->now(), gps_frame_id_);
 								_health_msg.add_gps_message(decoded_val);
 							}
 							else
 							{
 								publish_gp2(decoded_val, _gp2_publisher);
+								publish_navsatfix(decoded_val, _navsatfix2_publisher, this->now(), gps2_frame_id_);
 							}
 
 							isOK = 1;
@@ -393,6 +445,8 @@ private:
 						{
 							decode_rtcm_ins_msg(decoded_val, a1buff);
 							publish_ins(decoded_val, _ins_publisher);
+							publish_ins_orientation(decoded_val, _imu_ins_publisher, this->now(), imu_frame_id_);
+							publish_odometry(decoded_val, _odom_publisher, this->now(), odom_frame_id_, base_frame_id_, _odom_origin);
 							_health_msg.add_ins_message(decoded_val);
 
 
@@ -402,6 +456,7 @@ private:
 						{
 							decode_rtcm_im1_msg(decoded_val, a1buff);
 							publish_im1(decoded_val, _im1_publisher);
+							publish_imu_raw(decoded_val[1], decoded_val[2], decoded_val[3], decoded_val[4], decoded_val[5], decoded_val[6], decoded_val[7], true, _imu_raw_publisher, this->now(), imu_frame_id_);
 
 							isOK = 1;
 						}
@@ -480,6 +535,19 @@ private:
 	hdg_pub_t _hdg_publisher;
 	health_pub_t _health_publisher;
 	gga_pub_t _gga_publisher;
+
+	imu_std_pub_t _imu_raw_publisher;
+	imu_std_pub_t _imu_ins_publisher;
+	navsatfix_pub_t _navsatfix_publisher;
+	navsatfix_pub_t _navsatfix2_publisher;
+	odom_pub_t _odom_publisher;
+	local_enu_origin_t _odom_origin = {};
+
+	std::string imu_frame_id_;
+	std::string gps_frame_id_;
+	std::string gps2_frame_id_;
+	std::string odom_frame_id_;
+	std::string base_frame_id_;
 
 	rclcpp::Subscription<mavros_msgs::msg::RTCM>::SharedPtr _rtcm_subscriber;
 	rclcpp::Subscription<anello_interfaces::msg::APODO>::SharedPtr _odo_subscriber;

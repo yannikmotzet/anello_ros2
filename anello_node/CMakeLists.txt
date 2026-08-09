@@ -16,9 +16,12 @@ find_package(rclcpp REQUIRED)
 find_package(nmea_msgs REQUIRED)
 find_package(mavros_msgs REQUIRED)
 find_package(anello_interfaces REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(tf2 REQUIRED)
 
-add_executable(anello_ros_driver_node 
-  src/anello_ros_driver/main_anello_ros_driver.cpp 
+add_executable(anello_ros_driver_node
+  src/anello_ros_driver/main_anello_ros_driver.cpp
   src/anello_ros_driver/bit_tools.cpp
   src/anello_ros_driver/comm/serial_interface.cpp
   src/anello_ros_driver/comm/ethernet_interface.cpp
@@ -28,14 +31,18 @@ add_executable(anello_ros_driver_node
   src/anello_ros_driver/messaging/ascii_decoder.cpp
   src/anello_ros_driver/messaging/health_message.cpp
   src/anello_ros_driver/messaging/message_publisher.cpp
+  src/anello_ros_driver/messaging/standard_message_publisher.cpp
   src/anello_ros_driver/messaging/ntrip_buffer.cpp
   src/anello_ros_driver/messaging/rtcm_decoder.cpp
 )
-ament_target_dependencies(anello_ros_driver_node 
-  rclcpp 
+ament_target_dependencies(anello_ros_driver_node
+  rclcpp
   anello_interfaces
-  nmea_msgs 
+  nmea_msgs
   mavros_msgs
+  sensor_msgs
+  nav_msgs
+  tf2
 )
 
 # Install nodes

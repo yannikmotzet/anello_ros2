@@ -151,6 +151,16 @@ Topic definitions are defined in the [ANELLO Developer Manual](https://docs-a1.r
       * 1 = Rate sensor unstable (large discrepancy between optical and MEMS gyros)
 * `/ntrip_client/nmea`
 
+In addition to the ANELLO-specific topics above, the same data is also published as standard ROS messages so it can be consumed by common packages (e.g. `robot_localization`) without depending on `anello_interfaces`:
+
+* `/imu/data_raw` (`sensor_msgs/Imu`) - raw gyro/accelerometer from `APIMU`/`APIM1`, no orientation
+* `/imu/data` (`sensor_msgs/Imu`) - orientation only, from `APINS` roll/pitch/heading
+* `/gps/fix` (`sensor_msgs/NavSatFix`) - from `APGPS`
+* `/gps2/fix` (`sensor_msgs/NavSatFix`) - from `APGP2`
+* `/odom` (`nav_msgs/Odometry`) - from `APINS`; position is a local ENU tangent-plane approximation anchored to the first INS fix received (not tied to a global datum)
+
+ANELLO reports orientation/velocity in NED (nav frame) and FRD (body frame); these are converted to ROS's ENU/FLU (REP-103) convention. Frame IDs default to `imu_link`, `gps_link`, `gps2_link`, `odom`, and `base_link`, and can be overridden via the `imu_frame_id`, `gps_frame_id`, `gps2_frame_id`, `odom_frame_id`, and `base_frame_id` launch arguments.
+
 #### Subscribed Topics
 
 Use the custom message and topic below to send odometer speed to the ANELLO unit.

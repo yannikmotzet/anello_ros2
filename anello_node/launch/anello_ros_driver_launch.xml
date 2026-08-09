@@ -12,6 +12,13 @@
     <arg name="anello_local_config_port" default="2222"/>
     <arg name="anello_local_odometer_port" default="3333"/>
 
+    <!-- Frame IDs used to stamp the standard sensor_msgs/nav_msgs topics (imu/*, gps*/fix, odom) -->
+    <arg name="imu_frame_id" default="imu_link"/>
+    <arg name="gps_frame_id" default="gps_link"/>
+    <arg name="gps2_frame_id" default="gps2_link"/>
+    <arg name="odom_frame_id" default="odom"/>
+    <arg name="base_frame_id" default="base_link"/>
+
     <!--Launch ANELLO ros driver-->
     <!--Update data and config port values to the ports in your system-->
     <node name="anello_ros_driver" pkg="anello_ros_driver" exec="anello_ros_driver_node" output="screen">
@@ -22,6 +29,11 @@
         <param name="anello_local_data_port" value="$(var anello_local_data_port)"/>
         <param name="anello_local_config_port" value="$(var anello_local_config_port)"/>
         <param name="anello_local_odometer_port" value="$(var anello_local_odometer_port)"/>
+        <param name="imu_frame_id" value="$(var imu_frame_id)"/>
+        <param name="gps_frame_id" value="$(var gps_frame_id)"/>
+        <param name="gps2_frame_id" value="$(var gps2_frame_id)"/>
+        <param name="odom_frame_id" value="$(var odom_frame_id)"/>
+        <param name="base_frame_id" value="$(var base_frame_id)"/>
     </node>
 
     <!-- NTRIP CLIENT PARAMTERS -->

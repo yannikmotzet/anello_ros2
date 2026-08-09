@@ -159,6 +159,10 @@ Use the custom message and topic below to send odometer speed to the ANELLO unit
   * Use the custom message definition found in `/anello_ros_driver/msg/APODO.msg`
 * `/ntrip_client/rtcm_msg`
 
+## Third-Party Software
+
+The `ntrip_client` package is adapted from [LORD-MicroStrain/ntrip_client](https://github.com/LORD-MicroStrain/ntrip_client), used under the MIT License.
+
 ## License
 
 MIT License

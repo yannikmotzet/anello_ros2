@@ -18,7 +18,9 @@ find_package(mavros_msgs REQUIRED)
 find_package(anello_interfaces REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 add_executable(anello_ros_driver_node
   src/anello_ros_driver/main_anello_ros_driver.cpp
@@ -42,7 +44,9 @@ ament_target_dependencies(anello_ros_driver_node
   mavros_msgs
   sensor_msgs
   nav_msgs
+  geometry_msgs
   tf2
+  tf2_ros
 )
 
 # Install nodes

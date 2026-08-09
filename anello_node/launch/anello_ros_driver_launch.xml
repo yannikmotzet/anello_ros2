@@ -12,12 +12,19 @@
     <arg name="anello_local_config_port" default="2222"/>
     <arg name="anello_local_odometer_port" default="3333"/>
 
-    <!-- Frame IDs used to stamp the standard sensor_msgs/nav_msgs topics (imu/*, gps*/fix, odom) -->
+    <!-- Frame IDs used to stamp the standard sensor_msgs/nav_msgs topics (imu/*, gps*/fix, odom).
+         map_frame_id defaults to "map" rather than "odom" because /odom's position comes from
+         APINS, which already applies GPS/RTK corrections and can jump (e.g. RTK float -> fixed)
+         rather than only drift smoothly -- see readme.md for the REP-105 rationale. -->
     <arg name="imu_frame_id" default="imu_link"/>
     <arg name="gps_frame_id" default="gps_link"/>
     <arg name="gps2_frame_id" default="gps2_link"/>
-    <arg name="odom_frame_id" default="odom"/>
+    <arg name="map_frame_id" default="map"/>
     <arg name="base_frame_id" default="base_link"/>
+
+    <!-- Whether to also broadcast the map_frame_id -> base_frame_id transform on /tf.
+         Turn this off if another node (e.g. robot_localization) already owns that transform. -->
+    <arg name="publish_tf" default="true"/>
 
     <!--Launch ANELLO ros driver-->
     <!--Update data and config port values to the ports in your system-->
@@ -32,8 +39,9 @@
         <param name="imu_frame_id" value="$(var imu_frame_id)"/>
         <param name="gps_frame_id" value="$(var gps_frame_id)"/>
         <param name="gps2_frame_id" value="$(var gps2_frame_id)"/>
-        <param name="odom_frame_id" value="$(var odom_frame_id)"/>
+        <param name="map_frame_id" value="$(var map_frame_id)"/>
         <param name="base_frame_id" value="$(var base_frame_id)"/>
+        <param name="publish_tf" value="$(var publish_tf)"/>
     </node>
 
     <!-- NTRIP CLIENT PARAMTERS -->

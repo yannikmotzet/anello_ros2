@@ -15,6 +15,7 @@
 #include <tf2/LinearMath/Vector3.h>
 
 #include <sensor_msgs/msg/nav_sat_status.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 
 namespace
 {
@@ -143,7 +144,8 @@ void publish_ins_orientation(double *ins, imu_std_pub_t pub, rclcpp::Time stamp,
 
 void publish_odometry(double *ins, odom_pub_t pub, rclcpp::Time stamp,
 					   const std::string &frame_id, const std::string &child_frame_id,
-					   local_enu_origin_t &origin)
+					   local_enu_origin_t &origin, bool publish_tf,
+					   tf2_ros::TransformBroadcaster &tf_broadcaster)
 {
 	/*
 	 * ins[3] = Latitude [deg]
@@ -198,4 +200,19 @@ void publish_odometry(double *ins, odom_pub_t pub, rclcpp::Time stamp,
 	// (unknown) rather than -1, since nav_msgs/Odometry has no "do not use" convention.
 
 	pub->publish(msg);
+
+	if (publish_tf)
+	{
+		geometry_msgs::msg::TransformStamped tf_msg;
+		tf_msg.header.stamp = stamp;
+		tf_msg.header.frame_id = frame_id;
+		tf_msg.child_frame_id = child_frame_id;
+
+		tf_msg.transform.translation.x = east;
+		tf_msg.transform.translation.y = north;
+		tf_msg.transform.translation.z = up;
+		tf_msg.transform.rotation = msg.pose.pose.orientation;
+
+		tf_broadcaster.sendTransform(tf_msg);
+	}
 }

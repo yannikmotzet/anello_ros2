@@ -158,8 +158,13 @@ In addition to the ANELLO-specific topics above, the same data is also published
 * `/gps/fix` (`sensor_msgs/NavSatFix`) - from `APGPS`
 * `/gps2/fix` (`sensor_msgs/NavSatFix`) - from `APGP2`
 * `/odom` (`nav_msgs/Odometry`) - from `APINS`; position is a local ENU tangent-plane approximation anchored to the first INS fix received (not tied to a global datum)
+* `/tf` (`map_frame_id` -> `base_frame_id`) - broadcast alongside `/odom`, controlled by the `publish_tf` launch argument (default `true`)
 
-ANELLO reports orientation/velocity in NED (nav frame) and FRD (body frame); these are converted to ROS's ENU/FLU (REP-103) convention. Frame IDs default to `imu_link`, `gps_link`, `gps2_link`, `odom`, and `base_link`, and can be overridden via the `imu_frame_id`, `gps_frame_id`, `gps2_frame_id`, `odom_frame_id`, and `base_frame_id` launch arguments.
+ANELLO reports orientation/velocity in NED (nav frame) and FRD (body frame); these are converted to ROS's ENU/FLU (REP-103) convention. Frame IDs default to `imu_link`, `gps_link`, `gps2_link`, `map`, and `base_link`, and can be overridden via the `imu_frame_id`, `gps_frame_id`, `gps2_frame_id`, `map_frame_id`, and `base_frame_id` launch arguments.
+
+**Why `/odom` defaults to frame_id `map`, not `odom`:** per [REP-105](https://www.ros.org/reps/rep-0105.html), `odom` is expected to be locally continuous (no jumps, only slow drift), which is normally what dead-reckoning sensors (wheel/visual odometry) provide. `/odom` here is derived from `APINS`, which already applies GPS/RTK corrections, so it *can* jump when the RTK status changes (e.g. float -> fixed) or after a GNSS reacquisition -- that matches REP-105's definition of the `map` frame instead. If you build a localization stack (e.g. `robot_localization`) with its own dead-reckoning-based `odom` -> `base_link`, this can still feed it as the `map` -> `odom` correction.
+
+If you plan to fuse this data with `robot_localization` or another node that also broadcasts the `odom` -> `base_link` transform, set `publish_tf:=false` to avoid two nodes publishing the same transform.
 
 #### Subscribed Topics
 

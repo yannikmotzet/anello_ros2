@@ -23,6 +23,32 @@ namespace
 	constexpr double STANDARD_GRAVITY = 9.80665; // m/s^2 per g (used to convert ANELLO's g-scaled accel)
 	constexpr double WGS84_MEAN_RADIUS_M = 6378137.0;
 
+	// GPS_Time (per the ANELLO Developer Manual) is nanoseconds since the GPS epoch,
+	// 1980-01-06T00:00:00 UTC, which is exactly this many seconds after the Unix epoch.
+	constexpr double GPS_TO_UNIX_EPOCH_OFFSET_S = 315964800.0;
+	// GPS time has no leap seconds; UTC (and therefore Unix time) does. This is the current
+	// constant offset (unchanged since the last leap second, 2016-12-31) -- would need updating
+	// if a new leap second is ever inserted.
+	constexpr double GPS_UTC_LEAP_SECONDS = 18.0;
+
+	// Converts a GPS_Time value (ns since the GPS epoch, as reported by APGPS/APGP2/APHDG/APINS)
+	// into a message header stamp. Falls back to `fallback` (typically the node's own clock) if
+	// gps_time_ns isn't populated yet (<= 0), e.g. before the receiver has ever tracked a satellite.
+	builtin_interfaces::msg::Time gps_time_ns_to_header_stamp(double gps_time_ns, const rclcpp::Time &fallback)
+	{
+		if (gps_time_ns <= 0.0)
+		{
+			return fallback;
+		}
+
+		double unix_ns = gps_time_ns + (GPS_TO_UNIX_EPOCH_OFFSET_S - GPS_UTC_LEAP_SECONDS) * 1.0e9;
+
+		builtin_interfaces::msg::Time stamp;
+		stamp.sec = static_cast<int32_t>(std::floor(unix_ns / 1.0e9));
+		stamp.nanosec = static_cast<uint32_t>(unix_ns - static_cast<double>(stamp.sec) * 1.0e9);
+		return stamp;
+	}
+
 	// ANELLO reports orientation/velocity in NED (nav) / FRD (body), while ROS REP-103 expects
 	// ENU (nav) / FLU (body). The two fixed rotations below convert between them; see
 	// standard_message_publisher.h for the derivation.
@@ -44,10 +70,10 @@ namespace
 
 void publish_imu_raw(double ax, double ay, double az,
 					  double wx, double wy, double wz, double wz_fog, bool use_fog_gyro,
-					  imu_std_pub_t pub, rclcpp::Time stamp, const std::string &frame_id)
+					  double gps_time_ns, imu_std_pub_t pub, rclcpp::Time stamp, const std::string &frame_id)
 {
 	sensor_msgs::msg::Imu msg;
-	msg.header.stamp = stamp;
+	msg.header.stamp = gps_time_ns_to_header_stamp(gps_time_ns, stamp);
 	msg.header.frame_id = frame_id;
 
 	// No orientation estimate is available from raw IMU messages
@@ -82,7 +108,7 @@ void publish_navsatfix(double *gps, navsatfix_pub_t pub, rclcpp::Time stamp, con
 	 * gps[15] = RTK Fix Status (0=SPP, 1=RTK Float, 2=RTK Fix)
 	 */
 	sensor_msgs::msg::NavSatFix msg;
-	msg.header.stamp = stamp;
+	msg.header.stamp = gps_time_ns_to_header_stamp(gps[1], stamp);
 	msg.header.frame_id = frame_id;
 
 	int fix_type = (int)gps[11];
@@ -125,7 +151,7 @@ void publish_ins_orientation(double *ins, imu_std_pub_t pub, rclcpp::Time stamp,
 	 * ins[11] = Heading [deg]
 	 */
 	sensor_msgs::msg::Imu msg;
-	msg.header.stamp = stamp;
+	msg.header.stamp = gps_time_ns_to_header_stamp(ins[1], stamp);
 	msg.header.frame_id = frame_id;
 
 	// APINS does not report raw rates/acceleration
@@ -171,8 +197,10 @@ void publish_odometry(double *ins, odom_pub_t pub, rclcpp::Time stamp,
 	double east = (ins[4] - origin.lon0_deg) * DEG2RAD * WGS84_MEAN_RADIUS_M * std::cos(lat0_rad);
 	double up = ins[5] - origin.alt0_m;
 
+	builtin_interfaces::msg::Time header_stamp = gps_time_ns_to_header_stamp(ins[1], stamp);
+
 	nav_msgs::msg::Odometry msg;
-	msg.header.stamp = stamp;
+	msg.header.stamp = header_stamp;
 	msg.header.frame_id = frame_id;
 	msg.child_frame_id = child_frame_id;
 
@@ -204,7 +232,7 @@ void publish_odometry(double *ins, odom_pub_t pub, rclcpp::Time stamp,
 	if (publish_tf)
 	{
 		geometry_msgs::msg::TransformStamped tf_msg;
-		tf_msg.header.stamp = stamp;
+		tf_msg.header.stamp = header_stamp;
 		tf_msg.header.frame_id = frame_id;
 		tf_msg.child_frame_id = child_frame_id;
 

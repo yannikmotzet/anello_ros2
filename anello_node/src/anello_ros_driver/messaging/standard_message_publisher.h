@@ -53,8 +53,11 @@ typedef struct
  * ax, ay, az						  : Accelerometer readings [g], ANELLO body frame (x-forward, y-right, z-down)
  * wx, wy, wz, wz_fog				  : Gyro rates [deg/s], ANELLO body frame
  * use_fog_gyro						  : If true, publish wz_fog (high-precision FOG) instead of wz (MEMS) as the z-axis rate
+ * gps_time_ns						  : GPS_Time (ns since the GPS epoch) estimated for this IMU sample via MCU-to-GPS
+ *									    clock offset calibration (see main_anello_ros_driver.cpp); <= 0 if not yet
+ *									    calibrated (no GPS/INS/HDG message received since startup)
  * pub								  : Publisher used to publish the message
- * stamp							  : ROS time to stamp the message with
+ * stamp							  : Fallback ROS time to stamp the message with if gps_time_ns is not yet valid
  * frame_id							  : frame_id to stamp the message with
  *
  * Notes:
@@ -62,17 +65,25 @@ typedef struct
  * one of the two. Orientation is not provided by either message, so orientation_covariance[0]
  * is set to -1 per the sensor_msgs/Imu convention. Units and body frame are converted from
  * ANELLO's g / deg/s / FRD to ROS REP-103's m/s^2 / rad/s / FLU.
+ *
+ * Neither APIMU nor APIM1 report GPS_Time (only MCU_Time, which has no absolute epoch), so this
+ * cannot compute its own timestamp the way publish_navsatfix/publish_ins_orientation/
+ * publish_odometry do -- the caller must supply gps_time_ns.
  */
 void publish_imu_raw(double ax, double ay, double az,
 					  double wx, double wy, double wz, double wz_fog, bool use_fog_gyro,
-					  imu_std_pub_t pub, rclcpp::Time stamp, const std::string &frame_id);
+					  double gps_time_ns, imu_std_pub_t pub, rclcpp::Time stamp, const std::string &frame_id);
 
 /*
  * Parameters:
  * double *gps    : Same array passed to publish_gps()/publish_gp2() in message_publisher.h
  * pub			  : Publisher used to publish the message
- * stamp		  : ROS time to stamp the message with
+ * stamp		  : Fallback ROS time to stamp the message with if gps[1] (GPS_Time) is not yet valid
  * frame_id		  : frame_id to stamp the message with
+ *
+ * Notes:
+ * header.stamp is derived from gps[1] (GPS_Time), not `stamp` -- see gps_time_ns_to_header_stamp
+ * in standard_message_publisher.cpp for the GPS-epoch-to-Unix-epoch conversion.
  */
 void publish_navsatfix(double *gps, navsatfix_pub_t pub, rclcpp::Time stamp, const std::string &frame_id);
 
@@ -80,12 +91,13 @@ void publish_navsatfix(double *gps, navsatfix_pub_t pub, rclcpp::Time stamp, con
  * Parameters:
  * double *ins    : Same array passed to publish_ins() in message_publisher.h
  * pub			  : Publisher used to publish the message
- * stamp		  : ROS time to stamp the message with
+ * stamp		  : Fallback ROS time to stamp the message with if ins[1] (GPS_Time) is not yet valid
  * frame_id		  : frame_id to stamp the message with
  *
  * Notes:
  * Publishes INS-derived orientation only (roll/pitch/heading). Angular velocity and linear
- * acceleration are not provided by APINS, so their covariance[0] is set to -1.
+ * acceleration are not provided by APINS, so their covariance[0] is set to -1. header.stamp is
+ * derived from ins[1] (GPS_Time), not `stamp` -- see publish_navsatfix.
  */
 void publish_ins_orientation(double *ins, imu_std_pub_t pub, rclcpp::Time stamp, const std::string &frame_id);
 
@@ -93,7 +105,7 @@ void publish_ins_orientation(double *ins, imu_std_pub_t pub, rclcpp::Time stamp,
  * Parameters:
  * double *ins		 : Same array passed to publish_ins() in message_publisher.h
  * pub				 : Publisher used to publish the message
- * stamp			 : ROS time to stamp the message with
+ * stamp			 : Fallback ROS time to stamp the message with if ins[1] (GPS_Time) is not yet valid
  * frame_id			 : frame_id to stamp the message with (default "map", see local_enu_origin_t)
  * child_frame_id	 : frame_id of the vehicle body (e.g. "base_link")
  * origin			 : Local ENU origin state, see local_enu_origin_t. Persists across calls.
@@ -104,7 +116,8 @@ void publish_ins_orientation(double *ins, imu_std_pub_t pub, rclcpp::Time stamp,
  * Position is a local ENU tangent-plane approximation (flat-Earth, WGS84 mean radius) around
  * `origin` -- accurate to within the range needed for a few km of travel, not a substitute for
  * a proper geodetic projection over larger areas. Velocity is rotated into the body frame to
- * match the nav_msgs/Odometry convention that twist is expressed in child_frame_id.
+ * match the nav_msgs/Odometry convention that twist is expressed in child_frame_id. header.stamp
+ * (and the /tf stamp) is derived from ins[1] (GPS_Time), not `stamp` -- see publish_navsatfix.
  *
  * publish_tf defaults to on for out-of-the-box use (e.g. visualizing in rviz2), but should be
  * turned off if another node (e.g. robot_localization) already broadcasts this same transform --

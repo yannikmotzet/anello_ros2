@@ -339,6 +339,7 @@ private:
 					{
 						// ascii gps
 						decode_ascii_gps(val, decoded_val);
+						update_time_sync(decoded_val[0], decoded_val[1]);
 						publish_gps(decoded_val, _gps_publisher);
 						publish_gga(decoded_val, _gga_publisher, this->now());
 						publish_navsatfix(decoded_val, _navsatfix_publisher, this->now(), gps_frame_id_);
@@ -352,6 +353,7 @@ private:
 					{
 						// ascii gp2 (goes to the same place for now)
 						decode_ascii_gps(val, decoded_val);
+						update_time_sync(decoded_val[0], decoded_val[1]);
 						publish_gp2(decoded_val, _gp2_publisher);
 						publish_navsatfix(decoded_val, _navsatfix2_publisher, this->now(), gps2_frame_id_);
 #if DEBUG_MAIN
@@ -363,6 +365,7 @@ private:
 					{
 						// ascii hdg
 						decode_ascii_hdr(val, decoded_val);
+						update_time_sync(decoded_val[0], decoded_val[1]);
 						publish_hdr(decoded_val, _hdg_publisher);
 						_health_msg.add_hdg_message(decoded_val);
 #if DEBUG_MAIN
@@ -375,7 +378,7 @@ private:
 						// ascii imu
 						decode_ascii_imu(val, num, decoded_val);
 						publish_imu(decoded_val, _imu_publisher);
-						publish_imu_raw(decoded_val[1], decoded_val[2], decoded_val[3], decoded_val[4], decoded_val[5], decoded_val[6], decoded_val[7], true, _imu_raw_publisher, this->now(), imu_frame_id_);
+						publish_imu_raw(decoded_val[1], decoded_val[2], decoded_val[3], decoded_val[4], decoded_val[5], decoded_val[6], decoded_val[7], true, (_time_sync_calibrated ? (decoded_val[0] * 1.0e6 + _mcu_to_gps_offset_ns) : -1.0), _imu_raw_publisher, this->now(), imu_frame_id_);
 						_health_msg.add_imu_message(decoded_val);
 #if DEBUG_MAIN
 						printf("APIMUa\n");
@@ -387,7 +390,7 @@ private:
 						// ascii im1
 						decode_ascii_im1(val, num, decoded_val);
 						publish_im1(decoded_val, _im1_publisher);
-						publish_imu_raw(decoded_val[1], decoded_val[2], decoded_val[3], decoded_val[4], decoded_val[5], decoded_val[6], decoded_val[7], true, _imu_raw_publisher, this->now(), imu_frame_id_);
+						publish_imu_raw(decoded_val[1], decoded_val[2], decoded_val[3], decoded_val[4], decoded_val[5], decoded_val[6], decoded_val[7], true, (_time_sync_calibrated ? (decoded_val[0] * 1.0e6 + _mcu_to_gps_offset_ns) : -1.0), _imu_raw_publisher, this->now(), imu_frame_id_);
 #if DEBUG_MAIN
 						printf("APIM1a\n");
 #endif
@@ -397,6 +400,7 @@ private:
 					{
 						// ascii ins
 						decode_ascii_ins(val, decoded_val);
+						update_time_sync(decoded_val[0], decoded_val[1]);
 						publish_ins(decoded_val, _ins_publisher);
 						publish_ins_orientation(decoded_val, _imu_ins_publisher, this->now(), imu_frame_id_);
 						publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, base_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
@@ -417,7 +421,7 @@ private:
 						{
 							decode_rtcm_imu_msg(decoded_val, a1buff);
 							publish_imu(decoded_val, _imu_publisher);
-							publish_imu_raw(decoded_val[1], decoded_val[2], decoded_val[3], decoded_val[4], decoded_val[5], decoded_val[6], decoded_val[7], true, _imu_raw_publisher, this->now(), imu_frame_id_);
+							publish_imu_raw(decoded_val[1], decoded_val[2], decoded_val[3], decoded_val[4], decoded_val[5], decoded_val[6], decoded_val[7], true, (_time_sync_calibrated ? (decoded_val[0] * 1.0e6 + _mcu_to_gps_offset_ns) : -1.0), _imu_raw_publisher, this->now(), imu_frame_id_);
 							_health_msg.add_imu_message(decoded_val);
 
 							isOK = 1;
@@ -425,6 +429,7 @@ private:
 						else if (a1buff.subtype == 2) /* GPS PVT*/
 						{
 							int ant_id = decode_rtcm_gps_msg(decoded_val, a1buff);
+							update_time_sync(decoded_val[0], decoded_val[1]);
 							if (GPS1 == ant_id)
 							{
 								publish_gps(decoded_val, _gps_publisher);
@@ -443,6 +448,7 @@ private:
 						else if (a1buff.subtype == 3) /* DUAL ANTENNA */
 						{
 							decode_rtcm_hdg_msg(decoded_val, a1buff);
+							update_time_sync(decoded_val[0], decoded_val[1]);
 							publish_hdr(decoded_val, _hdg_publisher);
 							_health_msg.add_hdg_message(decoded_val);
 
@@ -452,6 +458,7 @@ private:
 						else if (a1buff.subtype == 4) /* INS */
 						{
 							decode_rtcm_ins_msg(decoded_val, a1buff);
+							update_time_sync(decoded_val[0], decoded_val[1]);
 							publish_ins(decoded_val, _ins_publisher);
 							publish_ins_orientation(decoded_val, _imu_ins_publisher, this->now(), imu_frame_id_);
 							publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, base_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
@@ -464,7 +471,7 @@ private:
 						{
 							decode_rtcm_im1_msg(decoded_val, a1buff);
 							publish_im1(decoded_val, _im1_publisher);
-							publish_imu_raw(decoded_val[1], decoded_val[2], decoded_val[3], decoded_val[4], decoded_val[5], decoded_val[6], decoded_val[7], true, _imu_raw_publisher, this->now(), imu_frame_id_);
+							publish_imu_raw(decoded_val[1], decoded_val[2], decoded_val[3], decoded_val[4], decoded_val[5], decoded_val[6], decoded_val[7], true, (_time_sync_calibrated ? (decoded_val[0] * 1.0e6 + _mcu_to_gps_offset_ns) : -1.0), _imu_raw_publisher, this->now(), imu_frame_id_);
 
 							isOK = 1;
 						}
@@ -534,7 +541,21 @@ private:
 	{
 		publish_health(&_health_msg, _health_publisher);
 	}
-	
+
+	/* Updates the MCU_Time -> GPS_Time offset used to timestamp imu/data_raw (see
+	 * publish_imu_raw in standard_message_publisher.h). Call this from every decode path that
+	 * reports both fields together (APGPS, APGP2, APHDG, APINS) -- APIMU/APIM1 only ever report
+	 * MCU_Time, so this is the only way to give them an absolute timestamp. Assumes MCU_Time and
+	 * GPS_Time advance at the same rate (no drift compensation), which is accurate enough between
+	 * the ~once-a-message calibration updates these decoders produce.
+	 */
+	void update_time_sync(double mcu_time_ms, double gps_time_ns)
+	{
+		_mcu_to_gps_offset_ns = gps_time_ns - mcu_time_ms * 1.0e6;
+		_time_sync_calibrated = true;
+	}
+
+
 	imu_pub_t _imu_publisher;
 	im1_pub_t _im1_publisher;
 	ins_pub_t _ins_publisher;
@@ -551,6 +572,8 @@ private:
 	odom_pub_t _odom_publisher;
 	local_enu_origin_t _odom_origin = {};
 	std::shared_ptr<tf2_ros::TransformBroadcaster> _tf_broadcaster;
+	bool _time_sync_calibrated = false;
+	double _mcu_to_gps_offset_ns = 0.0;
 
 	std::string imu_frame_id_;
 	std::string gps_frame_id_;

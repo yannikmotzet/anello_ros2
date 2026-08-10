@@ -95,6 +95,22 @@ void publish_navsatfix(double *gps, navsatfix_pub_t pub, rclcpp::Time stamp, con
  * frame_id		  : frame_id to stamp the message with
  *
  * Notes:
+ * INS-fused position (lat/lon/alt_ellipsoid), as opposed to publish_navsatfix's raw antenna
+ * position. Unlike APGPS, APINS reports no accuracy figures, so position_covariance_type is
+ * COVARIANCE_TYPE_UNKNOWN rather than a real estimate. Fix status is derived from ins_status
+ * (ins[2]) rather than rtk_fix_status. header.stamp is derived from ins[1] (GPS_Time), not
+ * `stamp` -- see publish_navsatfix.
+ */
+void publish_ins_navsatfix(double *ins, navsatfix_pub_t pub, rclcpp::Time stamp, const std::string &frame_id);
+
+/*
+ * Parameters:
+ * double *ins    : Same array passed to publish_ins() in message_publisher.h
+ * pub			  : Publisher used to publish the message
+ * stamp		  : Fallback ROS time to stamp the message with if ins[1] (GPS_Time) is not yet valid
+ * frame_id		  : frame_id to stamp the message with
+ *
+ * Notes:
  * Publishes INS-derived orientation only (roll/pitch/heading). Angular velocity and linear
  * acceleration are not provided by APINS, so their covariance[0] is set to -1. header.stamp is
  * derived from ins[1] (GPS_Time), not `stamp` -- see publish_navsatfix.

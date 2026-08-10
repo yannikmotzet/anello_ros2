@@ -157,6 +157,7 @@ In addition to the ANELLO-specific topics above, the same data is also published
 * `/imu/data` (`sensor_msgs/Imu`) - orientation only, from `APINS` roll/pitch/heading
 * `/gps/fix` (`sensor_msgs/NavSatFix`) - from `APGPS`
 * `/gps2/fix` (`sensor_msgs/NavSatFix`) - from `APGP2`
+* `/ins/fix` (`sensor_msgs/NavSatFix`) - from `APINS`'s fused lat/lon/alt_ellipsoid, stamped with `base_frame_id`. Unlike `/gps/fix`, `APINS` reports no accuracy figures, so `position_covariance_type` is `COVARIANCE_TYPE_UNKNOWN` and fix status comes from `ins_status` rather than `rtk_fix_status`
 * `/odom` (`nav_msgs/Odometry`) - from `APINS`; position is a local ENU tangent-plane approximation anchored to the first INS fix received (not tied to a global datum)
 * `/tf` (`map_frame_id` -> `base_frame_id`) - broadcast alongside `/odom`, controlled by the `publish_tf` launch argument (default `true`)
 

@@ -143,6 +143,48 @@ void publish_navsatfix(double *gps, navsatfix_pub_t pub, rclcpp::Time stamp, con
 	pub->publish(msg);
 }
 
+void publish_ins_navsatfix(double *ins, navsatfix_pub_t pub, rclcpp::Time stamp, const std::string &frame_id)
+{
+	/*
+	 * ins[2] = INS Status (255=uninitialized, 0=Attitude only, 1=Pos and Att, 2=Pos Hdg Att,
+	 *                      3=RTK Float, 4=RTK Fix)
+	 * ins[3] = Latitude [deg]
+	 * ins[4] = Longitude [deg]
+	 * ins[5] = Alt_ellipsoid [m]
+	 */
+	sensor_msgs::msg::NavSatFix msg;
+	msg.header.stamp = gps_time_ns_to_header_stamp(ins[1], stamp);
+	msg.header.frame_id = frame_id;
+
+	int ins_status = (int)ins[2];
+
+	if (ins_status == 4)
+	{
+		// RTK fixed (centimeter-level): closest standard match is a ground-based augmented fix
+		msg.status.status = sensor_msgs::msg::NavSatStatus::STATUS_GBAS_FIX;
+	}
+	else if (ins_status == 1 || ins_status == 2 || ins_status == 3)
+	{
+		msg.status.status = sensor_msgs::msg::NavSatStatus::STATUS_FIX;
+	}
+	else
+	{
+		// 255 (uninitialized) or 0 (attitude only): no position solution yet
+		msg.status.status = sensor_msgs::msg::NavSatStatus::STATUS_NO_FIX;
+	}
+	msg.status.service = sensor_msgs::msg::NavSatStatus::SERVICE_GPS;
+
+	msg.latitude = ins[3];
+	msg.longitude = ins[4];
+	msg.altitude = ins[5]; // height above the WGS84 ellipsoid, matches sensor_msgs/NavSatFix
+
+	// Unlike APGPS, APINS reports no accuracy figures (no hacc/vacc equivalent), so there is
+	// nothing to build a real covariance estimate from.
+	msg.position_covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
+
+	pub->publish(msg);
+}
+
 void publish_ins_orientation(double *ins, imu_std_pub_t pub, rclcpp::Time stamp, const std::string &frame_id)
 {
 	/*

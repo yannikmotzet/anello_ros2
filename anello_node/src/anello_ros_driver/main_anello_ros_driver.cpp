@@ -263,6 +263,7 @@ public:
 		_imu_ins_publisher = this->create_publisher<sensor_msgs::msg::Imu>("imu/data", 10);
 		_navsatfix_publisher = this->create_publisher<sensor_msgs::msg::NavSatFix>("gps/fix", 10);
 		_navsatfix2_publisher = this->create_publisher<sensor_msgs::msg::NavSatFix>("gps2/fix", 10);
+		_ins_navsatfix_publisher = this->create_publisher<sensor_msgs::msg::NavSatFix>("ins/fix", 10);
 		_odom_publisher = this->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
 		_tf_broadcaster = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
@@ -403,6 +404,7 @@ private:
 						update_time_sync(decoded_val[0], decoded_val[1]);
 						publish_ins(decoded_val, _ins_publisher);
 						publish_ins_orientation(decoded_val, _imu_ins_publisher, this->now(), imu_frame_id_);
+						publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), base_frame_id_);
 						publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, base_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
 						_health_msg.add_ins_message(decoded_val);
 #if DEBUG_MAIN
@@ -461,6 +463,7 @@ private:
 							update_time_sync(decoded_val[0], decoded_val[1]);
 							publish_ins(decoded_val, _ins_publisher);
 							publish_ins_orientation(decoded_val, _imu_ins_publisher, this->now(), imu_frame_id_);
+							publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), base_frame_id_);
 							publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, base_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
 							_health_msg.add_ins_message(decoded_val);
 
@@ -569,6 +572,7 @@ private:
 	imu_std_pub_t _imu_ins_publisher;
 	navsatfix_pub_t _navsatfix_publisher;
 	navsatfix_pub_t _navsatfix2_publisher;
+	navsatfix_pub_t _ins_navsatfix_publisher;
 	odom_pub_t _odom_publisher;
 	local_enu_origin_t _odom_origin = {};
 	std::shared_ptr<tf2_ros::TransformBroadcaster> _tf_broadcaster;

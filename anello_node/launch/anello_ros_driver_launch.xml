@@ -23,6 +23,26 @@
          Turn this off if another node (e.g. robot_localization) already owns that transform. -->
     <arg name="publish_tf" default="true"/>
 
+    <!-- GPS antenna offsets (ins_frame_id -> gps_frame_id / gps2_frame_id), from your ANELLO
+         Vehicle Configuration. Not reported by the device at runtime, so must be entered here.
+         ANELLO's own tool uses FRD (x-forward, y-right, z-down); ins_frame_id is ROS FLU, so
+         negate y and z from ANELLO's g1x,g1y,g1z / g2x,g2y,g2z when copying them over.
+         Defaults below match this unit's printed Vehicle Configuration - update if you change
+         the antenna mounting or use this driver with a different unit/vehicle. -->
+    <arg name="tf_ins_gps_x" default="0.0"/>
+    <arg name="tf_ins_gps_y" default="0.0"/>
+    <arg name="tf_ins_gps_z" default="1.250"/>
+    <arg name="tf_ins_gps2_x" default="1.0"/>
+    <arg name="tf_ins_gps2_y" default="0.0"/>
+    <arg name="tf_ins_gps2_z" default="1.250"/>
+
+    <node name="tf_ins_gps" pkg="tf2_ros" exec="static_transform_publisher"
+          args="--x $(var tf_ins_gps_x) --y $(var tf_ins_gps_y) --z $(var tf_ins_gps_z)
+                --frame-id $(var ins_frame_id) --child-frame-id $(var gps_frame_id)"/>
+    <node name="tf_ins_gps2" pkg="tf2_ros" exec="static_transform_publisher"
+          args="--x $(var tf_ins_gps2_x) --y $(var tf_ins_gps2_y) --z $(var tf_ins_gps2_z)
+                --frame-id $(var ins_frame_id) --child-frame-id $(var gps2_frame_id)"/>
+
     <!--Launch ANELLO ros driver-->
     <!--Update data and config port values to the ports in your system-->
     <node name="anello_ros_driver" pkg="anello_ros_driver" exec="anello_ros_driver_node" output="screen">

@@ -143,6 +143,26 @@
 #define PUBLISH_TF_PARAMETER_NAME "publish_tf"
 #endif
 
+#ifndef IMU_TOPIC_PARAMETER_NAME
+#define IMU_TOPIC_PARAMETER_NAME "imu_topic"
+#endif
+
+#ifndef GPS_TOPIC_PARAMETER_NAME
+#define GPS_TOPIC_PARAMETER_NAME "gps_topic"
+#endif
+
+#ifndef GPS2_TOPIC_PARAMETER_NAME
+#define GPS2_TOPIC_PARAMETER_NAME "gps2_topic"
+#endif
+
+#ifndef INS_FIX_TOPIC_PARAMETER_NAME
+#define INS_FIX_TOPIC_PARAMETER_NAME "ins_fix_topic"
+#endif
+
+#ifndef INS_ODOM_TOPIC_PARAMETER_NAME
+#define INS_ODOM_TOPIC_PARAMETER_NAME "ins_odom_topic"
+#endif
+
 #ifndef LOG_LATEST_SET
 #define LOG_LATEST_SET 0
 #endif
@@ -195,6 +215,11 @@ public:
 		this->declare_parameter(MAP_FRAME_ID_PARAMETER_NAME, "map");
 		this->declare_parameter(INS_FRAME_ID_PARAMETER_NAME, "ins");
 		this->declare_parameter(PUBLISH_TF_PARAMETER_NAME, true);
+		this->declare_parameter(IMU_TOPIC_PARAMETER_NAME, "imu");
+		this->declare_parameter(GPS_TOPIC_PARAMETER_NAME, "gps/fix");
+		this->declare_parameter(GPS2_TOPIC_PARAMETER_NAME, "gps2/fix");
+		this->declare_parameter(INS_FIX_TOPIC_PARAMETER_NAME, "ins/fix");
+		this->declare_parameter(INS_ODOM_TOPIC_PARAMETER_NAME, "ins/odom");
 
 		std::string com_type;
 		this->get_parameter(COM_TYPE_PARAMETER_NAME, com_type);
@@ -210,6 +235,11 @@ public:
 		this->get_parameter(MAP_FRAME_ID_PARAMETER_NAME, map_frame_id_);
 		this->get_parameter(INS_FRAME_ID_PARAMETER_NAME, ins_frame_id_);
 		this->get_parameter(PUBLISH_TF_PARAMETER_NAME, publish_tf_);
+		this->get_parameter(IMU_TOPIC_PARAMETER_NAME, imu_topic_);
+		this->get_parameter(GPS_TOPIC_PARAMETER_NAME, gps_topic_);
+		this->get_parameter(GPS2_TOPIC_PARAMETER_NAME, gps2_topic_);
+		this->get_parameter(INS_FIX_TOPIC_PARAMETER_NAME, ins_fix_topic_);
+		this->get_parameter(INS_ODOM_TOPIC_PARAMETER_NAME, ins_odom_topic_);
 
 		if (com_type == "UART")
 		{
@@ -259,12 +289,11 @@ public:
 		_gga_publisher = this->create_publisher<nmea_msgs::msg::Sentence>("ntrip_client/nmea", 1);
 
 		// create standard message publishers (in addition to the anello_interfaces ones above)
-		_imu_raw_publisher = this->create_publisher<sensor_msgs::msg::Imu>("imu/data_raw", 10);
-		_imu_ins_publisher = this->create_publisher<sensor_msgs::msg::Imu>("imu/data", 10);
-		_navsatfix_publisher = this->create_publisher<sensor_msgs::msg::NavSatFix>("gps/fix", 10);
-		_navsatfix2_publisher = this->create_publisher<sensor_msgs::msg::NavSatFix>("gps2/fix", 10);
-		_ins_navsatfix_publisher = this->create_publisher<sensor_msgs::msg::NavSatFix>("ins/fix", 10);
-		_odom_publisher = this->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
+		_imu_raw_publisher = this->create_publisher<sensor_msgs::msg::Imu>(imu_topic_, 10);
+		_navsatfix_publisher = this->create_publisher<sensor_msgs::msg::NavSatFix>(gps_topic_, 10);
+		_navsatfix2_publisher = this->create_publisher<sensor_msgs::msg::NavSatFix>(gps2_topic_, 10);
+		_ins_navsatfix_publisher = this->create_publisher<sensor_msgs::msg::NavSatFix>(ins_fix_topic_, 10);
+		_odom_publisher = this->create_publisher<nav_msgs::msg::Odometry>(ins_odom_topic_, 10);
 		_tf_broadcaster = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
 		// create a ntrip rtcm subscriber
@@ -403,7 +432,6 @@ private:
 						decode_ascii_ins(val, decoded_val);
 						update_time_sync(decoded_val[0], decoded_val[1]);
 						publish_ins(decoded_val, _ins_publisher);
-						publish_ins_orientation(decoded_val, _imu_ins_publisher, this->now(), imu_frame_id_);
 						publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), ins_frame_id_);
 						publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, ins_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
 						_health_msg.add_ins_message(decoded_val);
@@ -462,8 +490,7 @@ private:
 							decode_rtcm_ins_msg(decoded_val, a1buff);
 							update_time_sync(decoded_val[0], decoded_val[1]);
 							publish_ins(decoded_val, _ins_publisher);
-							publish_ins_orientation(decoded_val, _imu_ins_publisher, this->now(), imu_frame_id_);
-							publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), ins_frame_id_);
+								publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), ins_frame_id_);
 							publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, ins_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
 							_health_msg.add_ins_message(decoded_val);
 
@@ -545,7 +572,7 @@ private:
 		publish_health(&_health_msg, _health_publisher);
 	}
 
-	/* Updates the MCU_Time -> GPS_Time offset used to timestamp imu/data_raw (see
+	/* Updates the MCU_Time -> GPS_Time offset used to timestamp /imu (see
 	 * publish_imu_raw in standard_message_publisher.h). Call this from every decode path that
 	 * reports both fields together (APGPS, APGP2, APHDG, APINS) -- APIMU/APIM1 only ever report
 	 * MCU_Time, so this is the only way to give them an absolute timestamp. Assumes MCU_Time and
@@ -569,7 +596,6 @@ private:
 	gga_pub_t _gga_publisher;
 
 	imu_std_pub_t _imu_raw_publisher;
-	imu_std_pub_t _imu_ins_publisher;
 	navsatfix_pub_t _navsatfix_publisher;
 	navsatfix_pub_t _navsatfix2_publisher;
 	navsatfix_pub_t _ins_navsatfix_publisher;
@@ -585,6 +611,11 @@ private:
 	std::string map_frame_id_;
 	std::string ins_frame_id_;
 	bool publish_tf_;
+	std::string imu_topic_;
+	std::string gps_topic_;
+	std::string gps2_topic_;
+	std::string ins_fix_topic_;
+	std::string ins_odom_topic_;
 
 	rclcpp::Subscription<mavros_msgs::msg::RTCM>::SharedPtr _rtcm_subscriber;
 	rclcpp::Subscription<anello_interfaces::msg::APODO>::SharedPtr _odo_subscriber;

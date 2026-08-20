@@ -153,20 +153,19 @@ Topic definitions are defined in the [ANELLO Developer Manual](https://docs-a1.r
 
 In addition to the ANELLO-specific topics above, the same data is also published as standard ROS messages so it can be consumed by common packages (e.g. `robot_localization`) without depending on `anello_interfaces`:
 
-* `/imu/data_raw` (`sensor_msgs/Imu`) - raw gyro/accelerometer from `APIMU`/`APIM1`, no orientation
-* `/imu/data` (`sensor_msgs/Imu`) - orientation only, from `APINS` roll/pitch/heading
+* `/imu` (`sensor_msgs/Imu`) - raw gyro/accelerometer from `APIMU`/`APIM1`, no orientation
 * `/gps/fix` (`sensor_msgs/NavSatFix`) - from `APGPS`
 * `/gps2/fix` (`sensor_msgs/NavSatFix`) - from `APGP2`
 * `/ins/fix` (`sensor_msgs/NavSatFix`) - `APINS`'s fused lat/lon/alt; no accuracy figures, so covariance is unknown
-* `/odom` (`nav_msgs/Odometry`) - from `APINS`; local ENU position anchored to the first fix received
-* `/tf` (`map_frame_id` -> `ins_frame_id`) - alongside `/odom`, toggled by `publish_tf` (default `true`)
+* `/ins/odom` (`nav_msgs/Odometry`) - from `APINS`; local ENU position anchored to the first fix received, orientation included (no separate orientation-only topic)
+* `/tf` (`map_frame_id` -> `ins_frame_id`) - alongside `/ins/odom`, toggled by `publish_tf` (default `true`)
 
-ANELLO reports orientation/velocity in NED/FRD; converted here to ROS's ENU/FLU (REP-103). Frame IDs (`imu_frame_id`, `gps_frame_id`, `gps2_frame_id`, `map_frame_id`, `ins_frame_id`) default to `ins`, `gps_link`, `gps2_link`, `map`, `ins` and are overridable via launch arguments.
+ANELLO reports orientation/velocity in NED/FRD; converted here to ROS's ENU/FLU (REP-103). Frame IDs (`imu_frame_id`, `gps_frame_id`, `gps2_frame_id`, `map_frame_id`, `ins_frame_id`) default to `ins`, `gps_link`, `gps2_link`, `map`, `ins`; topic names (`imu_topic`, `gps_topic`, `gps2_topic`, `ins_fix_topic`, `ins_odom_topic`) default to `imu`, `gps/fix`, `gps2/fix`, `ins/fix`, `ins/odom`. Both are overridable via launch arguments.
 
 Notes:
-- `map_frame_id` defaults to `map`, not `odom`: `/odom`'s position comes from `APINS` (GPS/RTK-corrected, so it can jump on RTK status changes) rather than smooth dead-reckoning, matching REP-105's `map` frame better than `odom`.
+- `map_frame_id` defaults to `map`, not `odom`: `/ins/odom`'s position comes from `APINS` (GPS/RTK-corrected, so it can jump on RTK status changes) rather than smooth dead-reckoning, matching REP-105's `map` frame better than `odom`.
 - `imu_frame_id`/`ins_frame_id` share the default `ins` since they're normally the same physical point (the device's configurable "Output Center" offset defaults to zero). Override independently if you've configured a nonzero offset or want to align with `base_link`.
-- `header.stamp` comes from the device's own `GPS_Time`, not host system time. `imu/data_raw` has no `GPS_Time` of its own, so its stamp is reconstructed from the last `MCU_Time`/`GPS_Time` pairing seen in any other message (falls back to system time before the first one arrives). No time-sync-valid flag exists in the protocol, so treat this as best-effort.
+- `header.stamp` comes from the device's own `GPS_Time`, not host system time. `/imu` has no `GPS_Time` of its own, so its stamp is reconstructed from the last `MCU_Time`/`GPS_Time` pairing seen in any other message (falls back to system time before the first one arrives). No time-sync-valid flag exists in the protocol, so treat this as best-effort.
 
 If you plan to fuse this data with `robot_localization` or another node that also broadcasts the `odom` -> `base_link` transform, set `publish_tf:=false` to avoid two nodes publishing the same transform.
 

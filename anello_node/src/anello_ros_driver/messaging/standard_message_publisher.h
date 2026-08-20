@@ -67,8 +67,8 @@ typedef struct
  * ANELLO's g / deg/s / FRD to ROS REP-103's m/s^2 / rad/s / FLU.
  *
  * Neither APIMU nor APIM1 report GPS_Time (only MCU_Time, which has no absolute epoch), so this
- * cannot compute its own timestamp the way publish_navsatfix/publish_ins_orientation/
- * publish_odometry do -- the caller must supply gps_time_ns.
+ * cannot compute its own timestamp the way publish_navsatfix/publish_odometry do -- the caller
+ * must supply gps_time_ns.
  */
 void publish_imu_raw(double ax, double ay, double az,
 					  double wx, double wy, double wz, double wz_fog, bool use_fog_gyro,
@@ -102,20 +102,6 @@ void publish_navsatfix(double *gps, navsatfix_pub_t pub, rclcpp::Time stamp, con
  * `stamp` -- see publish_navsatfix.
  */
 void publish_ins_navsatfix(double *ins, navsatfix_pub_t pub, rclcpp::Time stamp, const std::string &frame_id);
-
-/*
- * Parameters:
- * double *ins    : Same array passed to publish_ins() in message_publisher.h
- * pub			  : Publisher used to publish the message
- * stamp		  : Fallback ROS time to stamp the message with if ins[1] (GPS_Time) is not yet valid
- * frame_id		  : frame_id to stamp the message with
- *
- * Notes:
- * Publishes INS-derived orientation only (roll/pitch/heading). Angular velocity and linear
- * acceleration are not provided by APINS, so their covariance[0] is set to -1. header.stamp is
- * derived from ins[1] (GPS_Time), not `stamp` -- see publish_navsatfix.
- */
-void publish_ins_orientation(double *ins, imu_std_pub_t pub, rclcpp::Time stamp, const std::string &frame_id);
 
 /*
  * Parameters:

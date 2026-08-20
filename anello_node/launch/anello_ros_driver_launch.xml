@@ -23,6 +23,13 @@
          Turn this off if another node (e.g. robot_localization) already owns that transform. -->
     <arg name="publish_tf" default="true"/>
 
+    <!-- Topic names for the standard sensor_msgs/nav_msgs topics -->
+    <arg name="imu_topic" default="imu"/>
+    <arg name="gps_topic" default="gps/fix"/>
+    <arg name="gps2_topic" default="gps2/fix"/>
+    <arg name="ins_fix_topic" default="ins/fix"/>
+    <arg name="ins_odom_topic" default="ins/odom"/>
+
     <!-- GPS antenna offsets (ins_frame_id -> gps_frame_id / gps2_frame_id), from your ANELLO
          Vehicle Configuration. Not reported by the device at runtime, so must be entered here.
          ANELLO's own tool uses FRD (x-forward, y-right, z-down); ins_frame_id is ROS FLU, so
@@ -59,6 +66,11 @@
         <param name="map_frame_id" value="$(var map_frame_id)"/>
         <param name="ins_frame_id" value="$(var ins_frame_id)"/>
         <param name="publish_tf" value="$(var publish_tf)"/>
+        <param name="imu_topic" value="$(var imu_topic)"/>
+        <param name="gps_topic" value="$(var gps_topic)"/>
+        <param name="gps2_topic" value="$(var gps2_topic)"/>
+        <param name="ins_fix_topic" value="$(var ins_fix_topic)"/>
+        <param name="ins_odom_topic" value="$(var ins_odom_topic)"/>
     </node>
 
     <!-- NTRIP CLIENT PARAMTERS -->

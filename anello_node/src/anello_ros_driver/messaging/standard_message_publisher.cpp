@@ -185,31 +185,6 @@ void publish_ins_navsatfix(double *ins, navsatfix_pub_t pub, rclcpp::Time stamp,
 	pub->publish(msg);
 }
 
-void publish_ins_orientation(double *ins, imu_std_pub_t pub, rclcpp::Time stamp, const std::string &frame_id)
-{
-	/*
-	 * ins[9]  = Roll [deg]
-	 * ins[10] = Pitch [deg]
-	 * ins[11] = Heading [deg]
-	 */
-	sensor_msgs::msg::Imu msg;
-	msg.header.stamp = gps_time_ns_to_header_stamp(ins[1], stamp);
-	msg.header.frame_id = frame_id;
-
-	// APINS does not report raw rates/acceleration
-	msg.angular_velocity_covariance[0] = -1.0;
-	msg.linear_acceleration_covariance[0] = -1.0;
-
-	tf2::Quaternion q = ned_rpy_to_enu_flu_quaternion(ins[9] * DEG2RAD, ins[10] * DEG2RAD, ins[11] * DEG2RAD);
-
-	msg.orientation.x = q.x();
-	msg.orientation.y = q.y();
-	msg.orientation.z = q.z();
-	msg.orientation.w = q.w();
-
-	pub->publish(msg);
-}
-
 void publish_odometry(double *ins, odom_pub_t pub, rclcpp::Time stamp,
 					   const std::string &frame_id, const std::string &child_frame_id,
 					   local_enu_origin_t &origin, bool publish_tf,

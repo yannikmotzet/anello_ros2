@@ -157,15 +157,16 @@ In addition to the ANELLO-specific topics above, the same data is also published
 * `/imu/data` (`sensor_msgs/Imu`) - orientation only, from `APINS` roll/pitch/heading
 * `/gps/fix` (`sensor_msgs/NavSatFix`) - from `APGPS`
 * `/gps2/fix` (`sensor_msgs/NavSatFix`) - from `APGP2`
-* `/ins/fix` (`sensor_msgs/NavSatFix`) - from `APINS`'s fused lat/lon/alt_ellipsoid, stamped with `base_frame_id`. Unlike `/gps/fix`, `APINS` reports no accuracy figures, so `position_covariance_type` is `COVARIANCE_TYPE_UNKNOWN` and fix status comes from `ins_status` rather than `rtk_fix_status`
-* `/odom` (`nav_msgs/Odometry`) - from `APINS`; position is a local ENU tangent-plane approximation anchored to the first INS fix received (not tied to a global datum)
-* `/tf` (`map_frame_id` -> `base_frame_id`) - broadcast alongside `/odom`, controlled by the `publish_tf` launch argument (default `true`)
+* `/ins/fix` (`sensor_msgs/NavSatFix`) - `APINS`'s fused lat/lon/alt; no accuracy figures, so covariance is unknown
+* `/odom` (`nav_msgs/Odometry`) - from `APINS`; local ENU position anchored to the first fix received
+* `/tf` (`map_frame_id` -> `ins_frame_id`) - alongside `/odom`, toggled by `publish_tf` (default `true`)
 
-ANELLO reports orientation/velocity in NED (nav frame) and FRD (body frame); these are converted to ROS's ENU/FLU (REP-103) convention. Frame IDs default to `imu_link`, `gps_link`, `gps2_link`, `map`, and `base_link`, and can be overridden via the `imu_frame_id`, `gps_frame_id`, `gps2_frame_id`, `map_frame_id`, and `base_frame_id` launch arguments.
+ANELLO reports orientation/velocity in NED/FRD; converted here to ROS's ENU/FLU (REP-103). Frame IDs (`imu_frame_id`, `gps_frame_id`, `gps2_frame_id`, `map_frame_id`, `ins_frame_id`) default to `ins`, `gps_link`, `gps2_link`, `map`, `ins` and are overridable via launch arguments.
 
-**Why `/odom` defaults to frame_id `map`, not `odom`:** per [REP-105](https://www.ros.org/reps/rep-0105.html), `odom` is expected to be locally continuous (no jumps, only slow drift), which is normally what dead-reckoning sensors (wheel/visual odometry) provide. `/odom` here is derived from `APINS`, which already applies GPS/RTK corrections, so it *can* jump when the RTK status changes (e.g. float -> fixed) or after a GNSS reacquisition -- that matches REP-105's definition of the `map` frame instead. If you build a localization stack (e.g. `robot_localization`) with its own dead-reckoning-based `odom` -> `base_link`, this can still feed it as the `map` -> `odom` correction.
-
-**Timestamps:** `header.stamp` on these standard messages comes from the ANELLO device's own `GPS_Time` field (nanoseconds since the GPS epoch, converted to Unix time), not the host's system clock at the time the driver processed the serial data -- this avoids baking in serial/decode-loop latency and jitter. `APIMU`/`APIM1` (used for `imu/data_raw`) don't report `GPS_Time` themselves (only `MCU_Time`, which has no absolute epoch), so their timestamp is reconstructed from the most recent `MCU_Time`/`GPS_Time` pairing seen in any `APGPS`/`APGP2`/`APHDG`/`APINS` message (same underlying device clock, assumed not to drift meaningfully between updates). Until the first such message arrives after startup, `imu/data_raw` falls back to the host's system clock. Note that ANELLO's protocol has no dedicated "time sync valid" flag, so this is a best-effort timestamp, not a guaranteed-accurate one.
+Notes:
+- `map_frame_id` defaults to `map`, not `odom`: `/odom`'s position comes from `APINS` (GPS/RTK-corrected, so it can jump on RTK status changes) rather than smooth dead-reckoning, matching REP-105's `map` frame better than `odom`.
+- `imu_frame_id`/`ins_frame_id` share the default `ins` since they're normally the same physical point (the device's configurable "Output Center" offset defaults to zero). Override independently if you've configured a nonzero offset or want to align with `base_link`.
+- `header.stamp` comes from the device's own `GPS_Time`, not host system time. `imu/data_raw` has no `GPS_Time` of its own, so its stamp is reconstructed from the last `MCU_Time`/`GPS_Time` pairing seen in any other message (falls back to system time before the first one arrives). No time-sync-valid flag exists in the protocol, so treat this as best-effort.
 
 If you plan to fuse this data with `robot_localization` or another node that also broadcasts the `odom` -> `base_link` transform, set `publish_tf:=false` to avoid two nodes publishing the same transform.
 

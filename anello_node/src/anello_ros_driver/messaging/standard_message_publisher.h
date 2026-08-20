@@ -123,7 +123,8 @@ void publish_ins_orientation(double *ins, imu_std_pub_t pub, rclcpp::Time stamp,
  * pub				 : Publisher used to publish the message
  * stamp			 : Fallback ROS time to stamp the message with if ins[1] (GPS_Time) is not yet valid
  * frame_id			 : frame_id to stamp the message with (default "map", see local_enu_origin_t)
- * child_frame_id	 : frame_id of the vehicle body (e.g. "base_link")
+ * child_frame_id	 : frame_id of the INS solution's reference point, i.e. ins_frame_id in
+ *					   main_anello_ros_driver.cpp (defaults to "imu_link", see its comment there)
  * origin			 : Local ENU origin state, see local_enu_origin_t. Persists across calls.
  * publish_tf		 : If true, also broadcast the frame_id -> child_frame_id transform on /tf
  * tf_broadcaster	 : Broadcaster used to send the transform when publish_tf is true

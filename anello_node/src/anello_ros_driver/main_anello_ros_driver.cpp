@@ -135,8 +135,8 @@
 #define MAP_FRAME_ID_PARAMETER_NAME "map_frame_id"
 #endif
 
-#ifndef BASE_FRAME_ID_PARAMETER_NAME
-#define BASE_FRAME_ID_PARAMETER_NAME "base_frame_id"
+#ifndef INS_FRAME_ID_PARAMETER_NAME
+#define INS_FRAME_ID_PARAMETER_NAME "ins_frame_id"
 #endif
 
 #ifndef PUBLISH_TF_PARAMETER_NAME
@@ -189,11 +189,11 @@ public:
 		this->declare_parameter(LOCAL_DATA_PORT_PARAMETER_NAME, 1111);
 		this->declare_parameter(LOCAL_CONFIG_PORT_PARAMETER_NAME, 2222);
 		this->declare_parameter(LOCAL_ODOMETER_PORT_PARAMETER_NAME, 3333);
-		this->declare_parameter(IMU_FRAME_ID_PARAMETER_NAME, "imu_link");
+		this->declare_parameter(IMU_FRAME_ID_PARAMETER_NAME, "ins");
 		this->declare_parameter(GPS_FRAME_ID_PARAMETER_NAME, "gps_link");
 		this->declare_parameter(GPS2_FRAME_ID_PARAMETER_NAME, "gps2_link");
 		this->declare_parameter(MAP_FRAME_ID_PARAMETER_NAME, "map");
-		this->declare_parameter(BASE_FRAME_ID_PARAMETER_NAME, "base_link");
+		this->declare_parameter(INS_FRAME_ID_PARAMETER_NAME, "ins");
 		this->declare_parameter(PUBLISH_TF_PARAMETER_NAME, true);
 
 		std::string com_type;
@@ -208,7 +208,7 @@ public:
 		this->get_parameter(GPS_FRAME_ID_PARAMETER_NAME, gps_frame_id_);
 		this->get_parameter(GPS2_FRAME_ID_PARAMETER_NAME, gps2_frame_id_);
 		this->get_parameter(MAP_FRAME_ID_PARAMETER_NAME, map_frame_id_);
-		this->get_parameter(BASE_FRAME_ID_PARAMETER_NAME, base_frame_id_);
+		this->get_parameter(INS_FRAME_ID_PARAMETER_NAME, ins_frame_id_);
 		this->get_parameter(PUBLISH_TF_PARAMETER_NAME, publish_tf_);
 
 		if (com_type == "UART")
@@ -404,8 +404,8 @@ private:
 						update_time_sync(decoded_val[0], decoded_val[1]);
 						publish_ins(decoded_val, _ins_publisher);
 						publish_ins_orientation(decoded_val, _imu_ins_publisher, this->now(), imu_frame_id_);
-						publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), base_frame_id_);
-						publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, base_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
+						publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), ins_frame_id_);
+						publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, ins_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
 						_health_msg.add_ins_message(decoded_val);
 #if DEBUG_MAIN
 						printf("APINSa\n");
@@ -463,8 +463,8 @@ private:
 							update_time_sync(decoded_val[0], decoded_val[1]);
 							publish_ins(decoded_val, _ins_publisher);
 							publish_ins_orientation(decoded_val, _imu_ins_publisher, this->now(), imu_frame_id_);
-							publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), base_frame_id_);
-							publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, base_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
+							publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), ins_frame_id_);
+							publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, ins_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
 							_health_msg.add_ins_message(decoded_val);
 
 
@@ -583,7 +583,7 @@ private:
 	std::string gps_frame_id_;
 	std::string gps2_frame_id_;
 	std::string map_frame_id_;
-	std::string base_frame_id_;
+	std::string ins_frame_id_;
 	bool publish_tf_;
 
 	rclcpp::Subscription<mavros_msgs::msg::RTCM>::SharedPtr _rtcm_subscriber;

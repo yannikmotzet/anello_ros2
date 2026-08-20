@@ -1,4 +1,6 @@
-# ANELLO ROS Driver
+# ANELLO ROS 2 Driver
+
+This is the **ROS 2** driver for ANELLO products. It is not compatible with ROS 1.
 
 ## ANELLO Products Supported
 

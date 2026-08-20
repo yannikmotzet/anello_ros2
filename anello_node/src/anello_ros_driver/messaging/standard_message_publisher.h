@@ -91,17 +91,20 @@ void publish_navsatfix(double *gps, navsatfix_pub_t pub, rclcpp::Time stamp, con
  * Parameters:
  * double *ins    : Same array passed to publish_ins() in message_publisher.h
  * pub			  : Publisher used to publish the message
- * stamp		  : Fallback ROS time to stamp the message with if ins[1] (GPS_Time) is not yet valid
+ * stamp		  : Fallback ROS time to stamp the message with if ins[1] is not yet valid
  * frame_id		  : frame_id to stamp the message with
+ * ins_gps_time_is_ptp : If true, ins[1] holds PTP/TAI time rather than GPS time -- see
+ *					     ins_gps_time_is_ptp in main_anello_ros_driver.cpp
  *
  * Notes:
  * INS-fused position (lat/lon/alt_ellipsoid), as opposed to publish_navsatfix's raw antenna
  * position. Unlike APGPS, APINS reports no accuracy figures, so position_covariance_type is
  * COVARIANCE_TYPE_UNKNOWN rather than a real estimate. Fix status is derived from ins_status
- * (ins[2]) rather than rtk_fix_status. header.stamp is derived from ins[1] (GPS_Time), not
- * `stamp` -- see publish_navsatfix.
+ * (ins[2]) rather than rtk_fix_status. header.stamp is derived from ins[1], not `stamp` -- see
+ * publish_navsatfix.
  */
-void publish_ins_navsatfix(double *ins, navsatfix_pub_t pub, rclcpp::Time stamp, const std::string &frame_id);
+void publish_ins_navsatfix(double *ins, navsatfix_pub_t pub, rclcpp::Time stamp, const std::string &frame_id,
+							bool ins_gps_time_is_ptp);
 
 /*
  * Parameters:
@@ -114,13 +117,15 @@ void publish_ins_navsatfix(double *ins, navsatfix_pub_t pub, rclcpp::Time stamp,
  * origin			 : Local ENU origin state, see local_enu_origin_t. Persists across calls.
  * publish_tf		 : If true, also broadcast the frame_id -> child_frame_id transform on /tf
  * tf_broadcaster	 : Broadcaster used to send the transform when publish_tf is true
+ * ins_gps_time_is_ptp : If true, ins[1] holds PTP/TAI time rather than GPS time -- see
+ *						 ins_gps_time_is_ptp in main_anello_ros_driver.cpp
  *
  * Notes:
  * Position is a local ENU tangent-plane approximation (flat-Earth, WGS84 mean radius) around
  * `origin` -- accurate to within the range needed for a few km of travel, not a substitute for
  * a proper geodetic projection over larger areas. Velocity is rotated into the body frame to
  * match the nav_msgs/Odometry convention that twist is expressed in child_frame_id. header.stamp
- * (and the /tf stamp) is derived from ins[1] (GPS_Time), not `stamp` -- see publish_navsatfix.
+ * (and the /tf stamp) is derived from ins[1], not `stamp` -- see publish_navsatfix.
  *
  * publish_tf defaults to on for out-of-the-box use (e.g. visualizing in rviz2), but should be
  * turned off if another node (e.g. robot_localization) already broadcasts this same transform --
@@ -130,7 +135,7 @@ void publish_ins_navsatfix(double *ins, navsatfix_pub_t pub, rclcpp::Time stamp,
 void publish_odometry(double *ins, odom_pub_t pub, rclcpp::Time stamp,
 					   const std::string &frame_id, const std::string &child_frame_id,
 					   local_enu_origin_t &origin, bool publish_tf,
-					   tf2_ros::TransformBroadcaster &tf_broadcaster);
+					   tf2_ros::TransformBroadcaster &tf_broadcaster, bool ins_gps_time_is_ptp);
 
 #endif
 #endif

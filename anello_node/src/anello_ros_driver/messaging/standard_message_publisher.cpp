@@ -31,22 +31,55 @@ namespace
 	// if a new leap second is ever inserted.
 	constexpr double GPS_UTC_LEAP_SECONDS = 18.0;
 
-	// Converts a GPS_Time value (ns since the GPS epoch, as reported by APGPS/APGP2/APHDG/APINS)
-	// into a message header stamp. Falls back to `fallback` (typically the node's own clock) if
-	// gps_time_ns isn't populated yet (<= 0), e.g. before the receiver has ever tracked a satellite.
-	builtin_interfaces::msg::Time gps_time_ns_to_header_stamp(double gps_time_ns, const rclcpp::Time &fallback)
+	// If the ANELLO unit is configured as a gPTP slave, APINS's GPS_Time field is overwritten
+	// with PTP time instead of true GPS time (confirmed against real hardware -- APGPS/APGP2/
+	// APHDG are unaffected and keep reporting true GPS time). PTP's default profile (IEEE 1588)
+	// is TAI-referenced nanoseconds since 1970-01-01T00:00:00 TAI: numerically the same epoch as
+	// Unix time, so only the leap-second correction applies, and it differs from GPS's because
+	// TAI, not UTC, is the reference (TAI-UTC = 37s = GPS_UTC_LEAP_SECONDS(18) + the fixed 19s
+	// TAI-GPS offset).
+	constexpr double PTP_TAI_UTC_LEAP_SECONDS = 37.0;
+
+	// Shared conversion: `time_ns` is nanoseconds on some continuous (leap-second-free) epoch;
+	// shift it onto the Unix epoch and remove `leap_seconds` to land on UTC/Unix time. Falls back
+	// to `fallback` (typically the node's own clock) if time_ns isn't populated yet (<= 0), e.g.
+	// before the receiver has ever tracked a satellite.
+	builtin_interfaces::msg::Time continuous_time_ns_to_header_stamp(double time_ns, double epoch_offset_s,
+																	  double leap_seconds_s, const rclcpp::Time &fallback)
 	{
-		if (gps_time_ns <= 0.0)
+		if (time_ns <= 0.0)
 		{
 			return fallback;
 		}
 
-		double unix_ns = gps_time_ns + (GPS_TO_UNIX_EPOCH_OFFSET_S - GPS_UTC_LEAP_SECONDS) * 1.0e9;
+		double unix_ns = time_ns + (epoch_offset_s - leap_seconds_s) * 1.0e9;
 
 		builtin_interfaces::msg::Time stamp;
 		stamp.sec = static_cast<int32_t>(std::floor(unix_ns / 1.0e9));
 		stamp.nanosec = static_cast<uint32_t>(unix_ns - static_cast<double>(stamp.sec) * 1.0e9);
 		return stamp;
+	}
+
+	// Converts a GPS_Time value (ns since the GPS epoch) into a message header stamp.
+	builtin_interfaces::msg::Time gps_time_ns_to_header_stamp(double gps_time_ns, const rclcpp::Time &fallback)
+	{
+		return continuous_time_ns_to_header_stamp(gps_time_ns, GPS_TO_UNIX_EPOCH_OFFSET_S, GPS_UTC_LEAP_SECONDS, fallback);
+	}
+
+	// Converts a PTP/TAI time value (ns since the PTP epoch) into a message header stamp -- use
+	// this instead of gps_time_ns_to_header_stamp for ins[1] when the unit is a gPTP slave.
+	builtin_interfaces::msg::Time ptp_time_ns_to_header_stamp(double ptp_time_ns, const rclcpp::Time &fallback)
+	{
+		return continuous_time_ns_to_header_stamp(ptp_time_ns, 0.0, PTP_TAI_UTC_LEAP_SECONDS, fallback);
+	}
+
+	// Picks the right conversion for APINS's ins[1] (GPS_Time or PTP time, see ins_gps_time_is_ptp
+	// in main_anello_ros_driver.cpp).
+	builtin_interfaces::msg::Time ins_time_ns_to_header_stamp(double ins_gps_time_ns, bool ins_gps_time_is_ptp,
+															   const rclcpp::Time &fallback)
+	{
+		return ins_gps_time_is_ptp ? ptp_time_ns_to_header_stamp(ins_gps_time_ns, fallback)
+								   : gps_time_ns_to_header_stamp(ins_gps_time_ns, fallback);
 	}
 
 	// ANELLO reports orientation/velocity in NED (nav) / FRD (body), while ROS REP-103 expects
@@ -143,7 +176,8 @@ void publish_navsatfix(double *gps, navsatfix_pub_t pub, rclcpp::Time stamp, con
 	pub->publish(msg);
 }
 
-void publish_ins_navsatfix(double *ins, navsatfix_pub_t pub, rclcpp::Time stamp, const std::string &frame_id)
+void publish_ins_navsatfix(double *ins, navsatfix_pub_t pub, rclcpp::Time stamp, const std::string &frame_id,
+							bool ins_gps_time_is_ptp)
 {
 	/*
 	 * ins[2] = INS Status (255=uninitialized, 0=Attitude only, 1=Pos and Att, 2=Pos Hdg Att,
@@ -153,7 +187,7 @@ void publish_ins_navsatfix(double *ins, navsatfix_pub_t pub, rclcpp::Time stamp,
 	 * ins[5] = Alt_ellipsoid [m]
 	 */
 	sensor_msgs::msg::NavSatFix msg;
-	msg.header.stamp = gps_time_ns_to_header_stamp(ins[1], stamp);
+	msg.header.stamp = ins_time_ns_to_header_stamp(ins[1], ins_gps_time_is_ptp, stamp);
 	msg.header.frame_id = frame_id;
 
 	int ins_status = (int)ins[2];
@@ -188,7 +222,7 @@ void publish_ins_navsatfix(double *ins, navsatfix_pub_t pub, rclcpp::Time stamp,
 void publish_odometry(double *ins, odom_pub_t pub, rclcpp::Time stamp,
 					   const std::string &frame_id, const std::string &child_frame_id,
 					   local_enu_origin_t &origin, bool publish_tf,
-					   tf2_ros::TransformBroadcaster &tf_broadcaster)
+					   tf2_ros::TransformBroadcaster &tf_broadcaster, bool ins_gps_time_is_ptp)
 {
 	/*
 	 * ins[3] = Latitude [deg]
@@ -214,7 +248,7 @@ void publish_odometry(double *ins, odom_pub_t pub, rclcpp::Time stamp,
 	double east = (ins[4] - origin.lon0_deg) * DEG2RAD * WGS84_MEAN_RADIUS_M * std::cos(lat0_rad);
 	double up = ins[5] - origin.alt0_m;
 
-	builtin_interfaces::msg::Time header_stamp = gps_time_ns_to_header_stamp(ins[1], stamp);
+	builtin_interfaces::msg::Time header_stamp = ins_time_ns_to_header_stamp(ins[1], ins_gps_time_is_ptp, stamp);
 
 	nav_msgs::msg::Odometry msg;
 	msg.header.stamp = header_stamp;

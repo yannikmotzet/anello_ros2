@@ -30,6 +30,12 @@
     <arg name="ins_fix_topic" default="ins/fix"/>
     <arg name="ins_odom_topic" default="ins/odom"/>
 
+    <!-- Set to true only if this unit is configured as a gPTP slave: APINS's GPS_Time field then
+         holds PTP/TAI time instead of true GPS time (confirmed on real hardware; APGPS/APGP2/
+         APHDG are unaffected). Getting this wrong makes ins_fix_topic/ins_odom_topic/tf stamps
+         off by ~10 years - see readme.md. -->
+    <arg name="ins_gps_time_is_ptp" default="false"/>
+
     <!-- GPS antenna offsets (ins_frame_id -> gps_frame_id / gps2_frame_id), from your ANELLO
          Vehicle Configuration. Not reported by the device at runtime, so must be entered here.
          ANELLO's own tool uses FRD (x-forward, y-right, z-down); ins_frame_id is ROS FLU, so
@@ -71,6 +77,7 @@
         <param name="gps2_topic" value="$(var gps2_topic)"/>
         <param name="ins_fix_topic" value="$(var ins_fix_topic)"/>
         <param name="ins_odom_topic" value="$(var ins_odom_topic)"/>
+        <param name="ins_gps_time_is_ptp" value="$(var ins_gps_time_is_ptp)"/>
     </node>
 
     <!-- NTRIP CLIENT PARAMTERS -->

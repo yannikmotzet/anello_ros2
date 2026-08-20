@@ -143,6 +143,10 @@
 #define PUBLISH_TF_PARAMETER_NAME "publish_tf"
 #endif
 
+#ifndef INS_GPS_TIME_IS_PTP_PARAMETER_NAME
+#define INS_GPS_TIME_IS_PTP_PARAMETER_NAME "ins_gps_time_is_ptp"
+#endif
+
 #ifndef IMU_TOPIC_PARAMETER_NAME
 #define IMU_TOPIC_PARAMETER_NAME "imu_topic"
 #endif
@@ -215,6 +219,7 @@ public:
 		this->declare_parameter(MAP_FRAME_ID_PARAMETER_NAME, "map");
 		this->declare_parameter(INS_FRAME_ID_PARAMETER_NAME, "ins");
 		this->declare_parameter(PUBLISH_TF_PARAMETER_NAME, true);
+		this->declare_parameter(INS_GPS_TIME_IS_PTP_PARAMETER_NAME, false);
 		this->declare_parameter(IMU_TOPIC_PARAMETER_NAME, "imu");
 		this->declare_parameter(GPS_TOPIC_PARAMETER_NAME, "gps/fix");
 		this->declare_parameter(GPS2_TOPIC_PARAMETER_NAME, "gps2/fix");
@@ -235,6 +240,7 @@ public:
 		this->get_parameter(MAP_FRAME_ID_PARAMETER_NAME, map_frame_id_);
 		this->get_parameter(INS_FRAME_ID_PARAMETER_NAME, ins_frame_id_);
 		this->get_parameter(PUBLISH_TF_PARAMETER_NAME, publish_tf_);
+		this->get_parameter(INS_GPS_TIME_IS_PTP_PARAMETER_NAME, ins_gps_time_is_ptp_);
 		this->get_parameter(IMU_TOPIC_PARAMETER_NAME, imu_topic_);
 		this->get_parameter(GPS_TOPIC_PARAMETER_NAME, gps_topic_);
 		this->get_parameter(GPS2_TOPIC_PARAMETER_NAME, gps2_topic_);
@@ -430,10 +436,15 @@ private:
 					{
 						// ascii ins
 						decode_ascii_ins(val, decoded_val);
-						update_time_sync(decoded_val[0], decoded_val[1]);
+						// APINS's GPS_Time is PTP time (not true GPS time) when the unit is a
+						// gPTP slave, so it must not feed the MCU-to-GPS calibration used for /imu.
+						if (!ins_gps_time_is_ptp_)
+						{
+							update_time_sync(decoded_val[0], decoded_val[1]);
+						}
 						publish_ins(decoded_val, _ins_publisher);
-						publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), ins_frame_id_);
-						publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, ins_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
+						publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), ins_frame_id_, ins_gps_time_is_ptp_);
+						publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, ins_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster, ins_gps_time_is_ptp_);
 						_health_msg.add_ins_message(decoded_val);
 #if DEBUG_MAIN
 						printf("APINSa\n");
@@ -488,10 +499,15 @@ private:
 						else if (a1buff.subtype == 4) /* INS */
 						{
 							decode_rtcm_ins_msg(decoded_val, a1buff);
-							update_time_sync(decoded_val[0], decoded_val[1]);
+							// APINS's GPS_Time is PTP time (not true GPS time) when the unit is a
+							// gPTP slave, so it must not feed the MCU-to-GPS calibration used for /imu.
+							if (!ins_gps_time_is_ptp_)
+							{
+								update_time_sync(decoded_val[0], decoded_val[1]);
+							}
 							publish_ins(decoded_val, _ins_publisher);
-								publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), ins_frame_id_);
-							publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, ins_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
+							publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), ins_frame_id_, ins_gps_time_is_ptp_);
+							publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, ins_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster, ins_gps_time_is_ptp_);
 							_health_msg.add_ins_message(decoded_val);
 
 
@@ -611,6 +627,7 @@ private:
 	std::string map_frame_id_;
 	std::string ins_frame_id_;
 	bool publish_tf_;
+	bool ins_gps_time_is_ptp_;
 	std::string imu_topic_;
 	std::string gps_topic_;
 	std::string gps2_topic_;

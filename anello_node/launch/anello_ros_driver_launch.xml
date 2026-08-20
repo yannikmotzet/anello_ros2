@@ -62,6 +62,9 @@
     </node>
 
     <!-- NTRIP CLIENT PARAMTERS -->
+    <!-- Off by default: requires a real NTRIP caster (host/port/mountpoint/credentials) to be
+         configured below, otherwise the node fails to connect. Enable with launch_ntrip:=true. -->
+    <arg name="launch_ntrip" default="false"/>
     <arg name="host" default="127.0.0.1"/>
     <arg name="port" default="1111"/>
     <arg name="mountpoint" default="AUTO"/>
@@ -76,7 +79,7 @@
     <arg name="debug" default="false"/>
     <arg name="rtcm_message_package" default="mavros_msgs"/>
 
-    <node name="ntrip_client_node" pkg="ntrip_client" exec="ntrip_ros" output="screen" namespace="ntrip_client">
+    <node name="ntrip_client_node" pkg="ntrip_client" exec="ntrip_ros" output="screen" namespace="ntrip_client" if="$(var launch_ntrip)">
         <!-- Required parameters used to connect to the NTRIP server -->
         <param name="host"       value="$(var host)" />
         <param name="port"       value="$(var port)" />

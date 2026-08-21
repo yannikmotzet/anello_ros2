@@ -35,17 +35,24 @@ namespace
 	// changes with new leap seconds, since neither TAI nor GPS time has leap seconds; UTC does.
 	constexpr double TAI_GPS_OFFSET_S = 19.0;
 
-	// If the ANELLO unit has gPTP enabled -- in either master or slave role -- APINS's GPS_Time
-	// field is overwritten with PTP time instead of true GPS time (confirmed against real
-	// hardware, in both roles; APGPS/APGP2/APHDG are unaffected either way). As master, the unit
-	// has no external clock to slave to, so it most likely derives its own PTP/TAI clock from its
-	// own GPS time, and that derived clock is what ends up in APINS's GPS_Time. PTP's default
-	// profile (IEEE 1588) is TAI-referenced nanoseconds since 1970-01-01T00:00:00 TAI -- a
-	// different epoch than GPS's (1980-01-06) *and* a different reference timescale (TAI, not
-	// UTC), so converting PTP time to the GPS-time equivalent needs both the epoch shift and the
-	// TAI-GPS offset: PTP_ns = GPS_ns + (epoch shift + TAI-GPS offset), i.e. GPS_ns = PTP_ns -
-	// (GPS_TO_UNIX_EPOCH_OFFSET_S + TAI_GPS_OFFSET_S).
-	constexpr double PTP_TO_GPS_EPOCH_OFFSET_S = GPS_TO_UNIX_EPOCH_OFFSET_S + TAI_GPS_OFFSET_S;
+	// If the ANELLO unit has gPTP enabled, APINS's GPS_Time field is overwritten with PTP time
+	// instead of true GPS time (confirmed against real hardware; APGPS/APGP2/APHDG are unaffected
+	// either way) -- but master and slave roles do this differently (also confirmed against real
+	// hardware):
+	//
+	// As slave, the unit receives a fully standards-compliant IEEE 1588 clock from an external
+	// grandmaster: PTP's default profile is TAI-referenced nanoseconds since 1970-01-01T00:00:00
+	// TAI -- a different epoch than GPS's (1980-01-06) *and* a different reference timescale
+	// (TAI, not UTC) -- so converting it to the GPS-time equivalent needs both the epoch shift
+	// and the TAI-GPS offset: PTP_ns = GPS_ns + (epoch shift + TAI-GPS offset), i.e. GPS_ns =
+	// PTP_ns - (GPS_TO_UNIX_EPOCH_OFFSET_S + TAI_GPS_OFFSET_S).
+	//
+	// As master, the unit has no external clock to slave to, so it derives its own clock from its
+	// own GPS time -- but only adds the fixed TAI-GPS duration, without also shifting the epoch
+	// base from GPS's (1980) to PTP's (1970) the way a real IEEE 1588 clock would. So as master,
+	// APINS's GPS_Time ends up as GPS-epoch time plus 19s, not true 1970-epoch PTP time: GPS_ns =
+	// PTP_ns - TAI_GPS_OFFSET_S only, no epoch shift.
+	constexpr double PTP_SLAVE_TO_GPS_EPOCH_OFFSET_S = GPS_TO_UNIX_EPOCH_OFFSET_S + TAI_GPS_OFFSET_S;
 
 	// Converts a GPS_Time value (ns since the GPS epoch) into a message header stamp. Falls back
 	// to `fallback` (typically the node's own clock) if gps_time_ns isn't populated yet (<= 0),
@@ -84,14 +91,25 @@ namespace
 	}
 }
 
-double ins_gps_time_ns(double ins_time_ns, bool ins_gps_time_is_ptp)
+double ins_gps_time_ns(double ins_time_ns, const std::string &gptp_role)
 {
-	if (!ins_gps_time_is_ptp || ins_time_ns <= 0.0)
+	if (ins_time_ns <= 0.0)
 	{
 		return ins_time_ns;
 	}
 
-	return ins_time_ns - PTP_TO_GPS_EPOCH_OFFSET_S * 1.0e9;
+	if (gptp_role == "slave")
+	{
+		return ins_time_ns - PTP_SLAVE_TO_GPS_EPOCH_OFFSET_S * 1.0e9;
+	}
+
+	if (gptp_role == "master")
+	{
+		return ins_time_ns - TAI_GPS_OFFSET_S * 1.0e9;
+	}
+
+	// "none" (default), or anything else: assume ins_time_ns is already true GPS time
+	return ins_time_ns;
 }
 
 void publish_imu_raw(double ax, double ay, double az,

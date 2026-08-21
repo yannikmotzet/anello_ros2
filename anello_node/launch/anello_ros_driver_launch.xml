@@ -30,11 +30,14 @@
     <arg name="ins_fix_topic" default="ins/fix"/>
     <arg name="ins_odom_topic" default="ins/odom"/>
 
-    <!-- Set to true if this unit has gPTP enabled, in EITHER master or slave role: APINS's
-         GPS_Time field then holds PTP/TAI time instead of true GPS time (confirmed on real
-         hardware in both roles; APGPS/APGP2/APHDG are unaffected). Getting this wrong makes
-         ins_fix_topic/ins_odom_topic/tf stamps off by ~10 years - see readme.md. -->
-    <arg name="ins_gps_time_is_ptp" default="false"/>
+    <!-- Set to "master" or "slave" to match this unit's gPTP role, or "none" if gPTP is off.
+         When gPTP is active, APINS's GPS_Time field holds PTP/TAI time instead of true GPS time
+         (confirmed on real hardware; APGPS/APGP2/APHDG are unaffected) - but master and slave
+         need different corrections (confirmed on real hardware too), so this can't just be a
+         bool. Getting this wrong makes ins_fix_topic/ins_odom_topic/tf/imu_topic stamps wrong by
+         ~10 years (slave value used as none/master) or ~19s (master value used as none/slave) -
+         see readme.md. -->
+    <arg name="gptp_role" default="none"/>
 
     <!-- GPS antenna offsets (ins_frame_id -> gps_frame_id / gps2_frame_id), from your ANELLO
          Vehicle Configuration. Not reported by the device at runtime, so must be entered here.
@@ -77,7 +80,7 @@
         <param name="gps2_topic" value="$(var gps2_topic)"/>
         <param name="ins_fix_topic" value="$(var ins_fix_topic)"/>
         <param name="ins_odom_topic" value="$(var ins_odom_topic)"/>
-        <param name="ins_gps_time_is_ptp" value="$(var ins_gps_time_is_ptp)"/>
+        <param name="gptp_role" value="$(var gptp_role)"/>
     </node>
 
     <!-- NTRIP CLIENT PARAMTERS -->

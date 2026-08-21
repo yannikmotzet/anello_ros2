@@ -50,12 +50,15 @@ typedef struct
 
 /*
  * Normalizes APINS's ins[1] to a true GPS_Time-equivalent value, converting from PTP/TAI time
- * first if ins_gps_time_is_ptp is set (see main_anello_ros_driver.cpp). Once normalized, the
- * result can be treated uniformly as GPS_Time -- e.g. passed to publish_ins_navsatfix/
- * publish_odometry's gps_time_ns parameter, or used to calibrate /imu's MCU-to-GPS time offset
- * (update_time_sync in main_anello_ros_driver.cpp) without APINS's PTP mode corrupting it.
+ * first if gptp_role is "master" or "slave" (see gptp_role in main_anello_ros_driver.cpp) --
+ * master and slave need different corrections, since they overwrite GPS_Time differently (see
+ * the comment above PTP_SLAVE_TO_GPS_EPOCH_OFFSET_S in standard_message_publisher.cpp). Once
+ * normalized, the result can be treated uniformly as GPS_Time -- e.g. passed to
+ * publish_ins_navsatfix/publish_odometry's gps_time_ns parameter, or used to calibrate /imu's
+ * MCU-to-GPS time offset (update_time_sync in main_anello_ros_driver.cpp) without APINS's gPTP
+ * mode corrupting it.
  */
-double ins_gps_time_ns(double ins_time_ns, bool ins_gps_time_is_ptp);
+double ins_gps_time_ns(double ins_time_ns, const std::string &gptp_role);
 
 /*
  * Parameters:

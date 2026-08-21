@@ -143,8 +143,8 @@
 #define PUBLISH_TF_PARAMETER_NAME "publish_tf"
 #endif
 
-#ifndef INS_GPS_TIME_IS_PTP_PARAMETER_NAME
-#define INS_GPS_TIME_IS_PTP_PARAMETER_NAME "ins_gps_time_is_ptp"
+#ifndef GPTP_ROLE_PARAMETER_NAME
+#define GPTP_ROLE_PARAMETER_NAME "gptp_role"
 #endif
 
 #ifndef IMU_TOPIC_PARAMETER_NAME
@@ -219,7 +219,7 @@ public:
 		this->declare_parameter(MAP_FRAME_ID_PARAMETER_NAME, "map");
 		this->declare_parameter(INS_FRAME_ID_PARAMETER_NAME, "ins");
 		this->declare_parameter(PUBLISH_TF_PARAMETER_NAME, true);
-		this->declare_parameter(INS_GPS_TIME_IS_PTP_PARAMETER_NAME, false);
+		this->declare_parameter(GPTP_ROLE_PARAMETER_NAME, "none");
 		this->declare_parameter(IMU_TOPIC_PARAMETER_NAME, "imu");
 		this->declare_parameter(GPS_TOPIC_PARAMETER_NAME, "gps/fix");
 		this->declare_parameter(GPS2_TOPIC_PARAMETER_NAME, "gps2/fix");
@@ -240,7 +240,7 @@ public:
 		this->get_parameter(MAP_FRAME_ID_PARAMETER_NAME, map_frame_id_);
 		this->get_parameter(INS_FRAME_ID_PARAMETER_NAME, ins_frame_id_);
 		this->get_parameter(PUBLISH_TF_PARAMETER_NAME, publish_tf_);
-		this->get_parameter(INS_GPS_TIME_IS_PTP_PARAMETER_NAME, ins_gps_time_is_ptp_);
+		this->get_parameter(GPTP_ROLE_PARAMETER_NAME, gptp_role_);
 		this->get_parameter(IMU_TOPIC_PARAMETER_NAME, imu_topic_);
 		this->get_parameter(GPS_TOPIC_PARAMETER_NAME, gps_topic_);
 		this->get_parameter(GPS2_TOPIC_PARAMETER_NAME, gps2_topic_);
@@ -436,7 +436,7 @@ private:
 						// APINS's GPS_Time is PTP time (not true GPS time) when the unit has gPTP
 						// enabled (master or slave); normalize it to a true GPS_Time equivalent
 						// before using it anywhere GPS_Time is expected.
-						double ins_gps_time = ins_gps_time_ns(decoded_val[1], ins_gps_time_is_ptp_);
+						double ins_gps_time = ins_gps_time_ns(decoded_val[1], gptp_role_);
 						update_time_sync(decoded_val[0], ins_gps_time);
 						publish_ins(decoded_val, _ins_publisher);
 						publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, ins_gps_time, this->now(), ins_frame_id_);
@@ -496,7 +496,7 @@ private:
 							// APINS's GPS_Time is PTP time (not true GPS time) when the unit has gPTP
 							// enabled (master or slave); normalize it to a true GPS_Time equivalent
 							// before using it anywhere GPS_Time is expected.
-							double ins_gps_time = ins_gps_time_ns(decoded_val[1], ins_gps_time_is_ptp_);
+							double ins_gps_time = ins_gps_time_ns(decoded_val[1], gptp_role_);
 							update_time_sync(decoded_val[0], ins_gps_time);
 							publish_ins(decoded_val, _ins_publisher);
 							publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, ins_gps_time, this->now(), ins_frame_id_);
@@ -628,7 +628,7 @@ private:
 	std::string map_frame_id_;
 	std::string ins_frame_id_;
 	bool publish_tf_;
-	bool ins_gps_time_is_ptp_;
+	std::string gptp_role_;
 	std::string imu_topic_;
 	std::string gps_topic_;
 	std::string gps2_topic_;

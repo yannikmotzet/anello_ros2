@@ -30,10 +30,10 @@
     <arg name="ins_fix_topic" default="ins/fix"/>
     <arg name="ins_odom_topic" default="ins/odom"/>
 
-    <!-- Set to true only if this unit is configured as a gPTP slave: APINS's GPS_Time field then
-         holds PTP/TAI time instead of true GPS time (confirmed on real hardware; APGPS/APGP2/
-         APHDG are unaffected). Getting this wrong makes ins_fix_topic/ins_odom_topic/tf stamps
-         off by ~10 years - see readme.md. -->
+    <!-- Set to true if this unit has gPTP enabled, in EITHER master or slave role: APINS's
+         GPS_Time field then holds PTP/TAI time instead of true GPS time (confirmed on real
+         hardware in both roles; APGPS/APGP2/APHDG are unaffected). Getting this wrong makes
+         ins_fix_topic/ins_odom_topic/tf stamps off by ~10 years - see readme.md. -->
     <arg name="ins_gps_time_is_ptp" default="false"/>
 
     <!-- GPS antenna offsets (ins_frame_id -> gps_frame_id / gps2_frame_id), from your ANELLO

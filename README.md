@@ -159,7 +159,7 @@ In addition to the ANELLO-specific topics above, the same data is also published
 * `/gps/fix` (`sensor_msgs/NavSatFix`) - from `APGPS`
 * `/gps2/fix` (`sensor_msgs/NavSatFix`) - from `APGP2`
 * `/ins/fix` (`sensor_msgs/NavSatFix`) - `APINS`'s fused lat/lon/alt; no accuracy figures, so covariance is unknown
-* `/ins/odom` (`nav_msgs/Odometry`) - from `APINS`; local ENU position anchored to the first fix received, orientation included (no separate orientation-only topic)
+* `/ins/odom` (`nav_msgs/Odometry`) - from `APINS`; local ENU position anchored to the first fix received
 * `/tf` (`map_frame_id` -> `ins_frame_id`) - alongside `/ins/odom`, toggled by `publish_tf` (default `true`)
 
 ANELLO reports orientation/velocity in NED/FRD; converted here to ROS's ENU/FLU (REP-103). Frame IDs (`imu_frame_id`, `gps_frame_id`, `gps2_frame_id`, `map_frame_id`, `ins_frame_id`) default to `ins`, `gps_link`, `gps2_link`, `map`, `ins`; topic names (`imu_topic`, `gps_topic`, `gps2_topic`, `ins_fix_topic`, `ins_odom_topic`) default to `imu`, `gps/fix`, `gps2/fix`, `ins/fix`, `ins/odom`. Both are overridable via launch arguments.
@@ -167,7 +167,8 @@ ANELLO reports orientation/velocity in NED/FRD; converted here to ROS's ENU/FLU 
 Notes:
 - `map_frame_id` defaults to `map`, not `odom`: `/ins/odom`'s position comes from `APINS` (GPS/RTK-corrected, so it can jump on RTK status changes) rather than smooth dead-reckoning, matching REP-105's `map` frame better than `odom`.
 - `imu_frame_id`/`ins_frame_id` share the default `ins` since they're normally the same physical point (the device's configurable "Output Center" offset defaults to zero). Override independently if you've configured a nonzero offset or want to align with `base_link`.
-- `header.stamp` comes from the device's own `GPS_Time`, not host system time. `/imu` has no `GPS_Time` of its own, so its stamp is reconstructed from the last `MCU_Time`/`GPS_Time` pairing seen in any other message (falls back to system time before the first one arrives). No time-sync-valid flag exists in the protocol, so treat this as best-effort.
+- `header.stamp` comes from the device's own `GPS_Time`, not host system time. `/imu` has no `GPS_Time` of its own, so its stamp is reconstructed from the last `MCU_Time`/`GPS_Time` pairing seen in `APINS` (falls back to system time before the first one arrives). `APINS` alone is used for this -- not `APGPS`/`APGP2`/`APHDG` -- since it's by far the highest-rate of the four (up to 100Hz vs. ~4Hz), and mixing in the others caused a few milliseconds of jitter every time the calibration source switched (each message type is a different internal pipeline with its own slightly different latency characteristic). No time-sync-valid flag exists in the protocol, so treat this as best-effort.
+- If the unit has **gPTP enabled**, in either master or slave role, `APINS`'s `GPS_Time` field is overwritten with PTP/TAI time instead of true GPS time (confirmed on real hardware in both roles -- `APGPS`/`APGP2`/`APHDG` are unaffected either way; as master, the unit has no external clock to slave to, so it most likely derives its own PTP/TAI clock from its own GPS time). Set `ins_gps_time_is_ptp:=true` whenever gPTP is active, or `/ins/fix`/`/ins/odom`/`/tf`/`/imu` timestamps will be off by ~10 years (wrong epoch *and* wrong leap-second constant). With this set, `APINS`'s `GPS_Time` is converted back to a true-GPS-time equivalent before being used anywhere, including `/imu`'s calibration.
 
 If you plan to fuse this data with `robot_localization` or another node that also broadcasts the `odom` -> `base_link` transform, set `publish_tf:=false` to avoid two nodes publishing the same transform.
 

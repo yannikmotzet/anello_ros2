@@ -375,7 +375,6 @@ private:
 					{
 						// ascii gps
 						decode_ascii_gps(val, decoded_val);
-						update_time_sync(decoded_val[0], decoded_val[1]);
 						publish_gps(decoded_val, _gps_publisher);
 						publish_gga(decoded_val, _gga_publisher, this->now());
 						publish_navsatfix(decoded_val, _navsatfix_publisher, this->now(), gps_frame_id_);
@@ -389,7 +388,6 @@ private:
 					{
 						// ascii gp2 (goes to the same place for now)
 						decode_ascii_gps(val, decoded_val);
-						update_time_sync(decoded_val[0], decoded_val[1]);
 						publish_gp2(decoded_val, _gp2_publisher);
 						publish_navsatfix(decoded_val, _navsatfix2_publisher, this->now(), gps2_frame_id_);
 #if DEBUG_MAIN
@@ -401,7 +399,6 @@ private:
 					{
 						// ascii hdg
 						decode_ascii_hdr(val, decoded_val);
-						update_time_sync(decoded_val[0], decoded_val[1]);
 						publish_hdr(decoded_val, _hdg_publisher);
 						_health_msg.add_hdg_message(decoded_val);
 #if DEBUG_MAIN
@@ -436,15 +433,14 @@ private:
 					{
 						// ascii ins
 						decode_ascii_ins(val, decoded_val);
-						// APINS's GPS_Time is PTP time (not true GPS time) when the unit is a
-						// gPTP slave, so it must not feed the MCU-to-GPS calibration used for /imu.
-						if (!ins_gps_time_is_ptp_)
-						{
-							update_time_sync(decoded_val[0], decoded_val[1]);
-						}
+						// APINS's GPS_Time is PTP time (not true GPS time) when the unit has gPTP
+						// enabled (master or slave); normalize it to a true GPS_Time equivalent
+						// before using it anywhere GPS_Time is expected.
+						double ins_gps_time = ins_gps_time_ns(decoded_val[1], ins_gps_time_is_ptp_);
+						update_time_sync(decoded_val[0], ins_gps_time);
 						publish_ins(decoded_val, _ins_publisher);
-						publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), ins_frame_id_, ins_gps_time_is_ptp_);
-						publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, ins_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster, ins_gps_time_is_ptp_);
+						publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, ins_gps_time, this->now(), ins_frame_id_);
+						publish_odometry(decoded_val, _odom_publisher, ins_gps_time, this->now(), map_frame_id_, ins_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
 						_health_msg.add_ins_message(decoded_val);
 #if DEBUG_MAIN
 						printf("APINSa\n");
@@ -470,7 +466,6 @@ private:
 						else if (a1buff.subtype == 2) /* GPS PVT*/
 						{
 							int ant_id = decode_rtcm_gps_msg(decoded_val, a1buff);
-							update_time_sync(decoded_val[0], decoded_val[1]);
 							if (GPS1 == ant_id)
 							{
 								publish_gps(decoded_val, _gps_publisher);
@@ -489,7 +484,6 @@ private:
 						else if (a1buff.subtype == 3) /* DUAL ANTENNA */
 						{
 							decode_rtcm_hdg_msg(decoded_val, a1buff);
-							update_time_sync(decoded_val[0], decoded_val[1]);
 							publish_hdr(decoded_val, _hdg_publisher);
 							_health_msg.add_hdg_message(decoded_val);
 
@@ -499,15 +493,14 @@ private:
 						else if (a1buff.subtype == 4) /* INS */
 						{
 							decode_rtcm_ins_msg(decoded_val, a1buff);
-							// APINS's GPS_Time is PTP time (not true GPS time) when the unit is a
-							// gPTP slave, so it must not feed the MCU-to-GPS calibration used for /imu.
-							if (!ins_gps_time_is_ptp_)
-							{
-								update_time_sync(decoded_val[0], decoded_val[1]);
-							}
+							// APINS's GPS_Time is PTP time (not true GPS time) when the unit has gPTP
+							// enabled (master or slave); normalize it to a true GPS_Time equivalent
+							// before using it anywhere GPS_Time is expected.
+							double ins_gps_time = ins_gps_time_ns(decoded_val[1], ins_gps_time_is_ptp_);
+							update_time_sync(decoded_val[0], ins_gps_time);
 							publish_ins(decoded_val, _ins_publisher);
-							publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, this->now(), ins_frame_id_, ins_gps_time_is_ptp_);
-							publish_odometry(decoded_val, _odom_publisher, this->now(), map_frame_id_, ins_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster, ins_gps_time_is_ptp_);
+							publish_ins_navsatfix(decoded_val, _ins_navsatfix_publisher, ins_gps_time, this->now(), ins_frame_id_);
+							publish_odometry(decoded_val, _odom_publisher, ins_gps_time, this->now(), map_frame_id_, ins_frame_id_, _odom_origin, publish_tf_, *_tf_broadcaster);
 							_health_msg.add_ins_message(decoded_val);
 
 
@@ -589,11 +582,19 @@ private:
 	}
 
 	/* Updates the MCU_Time -> GPS_Time offset used to timestamp /imu (see
-	 * publish_imu_raw in standard_message_publisher.h). Call this from every decode path that
-	 * reports both fields together (APGPS, APGP2, APHDG, APINS) -- APIMU/APIM1 only ever report
-	 * MCU_Time, so this is the only way to give them an absolute timestamp. Assumes MCU_Time and
-	 * GPS_Time advance at the same rate (no drift compensation), which is accurate enough between
-	 * the ~once-a-message calibration updates these decoders produce.
+	 * publish_imu_raw in standard_message_publisher.h). APIMU/APIM1 only ever report MCU_Time,
+	 * so this is the only way to give them an absolute timestamp.
+	 *
+	 * Only called from the APINS decode paths, not APGPS/APGP2/APHDG, even though all four report
+	 * both MCU_Time and GPS_Time: APINS is by far the highest rate of the four (up to 100Hz vs
+	 * ~4Hz), so it alone keeps this calibration plenty fresh, and mixing in the others introduced
+	 * a small but real jump every time the calibration source switched -- each message type is a
+	 * different internal pipeline (raw GNSS fix vs. the INS filter fusing GPS+IMU) with its own
+	 * slightly different MCU-time-to-GPS-time latency, so alternating between them as calibration
+	 * sources produced a few milliseconds of jitter on every switch.
+	 *
+	 * Assumes MCU_Time and GPS_Time advance at the same rate (no drift compensation), which is
+	 * accurate enough between the ~once-a-message calibration updates this decoder produces.
 	 */
 	void update_time_sync(double mcu_time_ms, double gps_time_ns)
 	{
